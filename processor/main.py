@@ -52,11 +52,11 @@ DEFAULTS = {
 }
 PARAMETERS = tuple(DEFAULTS)
 CITATIONS = [   # each checked on Crossref and PubMed (README "Citations")
-    {"doi": "10.1038/s41592-023-02139-9", "pmid": "38191932", "text": "Zhang et al. Nat Methods 2024 (SnapATAC2)"},
-    {"doi": "10.1186/gb-2008-9-9-r137", "pmid": "18798982", "text": "Zhang et al. Genome Biol 2008 (MACS)"},
-    {"doi": "10.1093/nar/gkaf1209", "pmid": "41325984", "text": "JASPAR 2026, Nucleic Acids Res 2026"},
-    {"doi": "10.1093/nar/gkac1071", "pmid": "36420896", "text": "Frankish et al. Nucleic Acids Res 2023 (GENCODE)"},
-    {"doi": "10.1038/s41576-023-00586-w", "pmid": "37002403", "text": "Heumos et al. Nat Rev Genet 2023"},
+    {"doi": "10.1038/s41592-023-02139-9", "pmid": "38191932", "text": "Zhang K et al. Nat Methods 2024"},
+    {"doi": "10.1186/gb-2008-9-9-r137", "pmid": "18798982", "text": "Zhang Y et al. Genome Biol 2008"},
+    {"doi": "10.1093/nar/gkaf1209", "pmid": "41325984", "text": "Ovek Baydar D et al. Nucleic Acids Res 2026"},
+    {"doi": "10.1093/nar/gkac1071", "pmid": "36420896", "text": "Frankish A et al. Nucleic Acids Res 2023"},
+    {"doi": "10.1038/s41576-023-00586-w", "pmid": "37002403", "text": "Heumos L et al. Nat Rev Genet 2023"},
 ]
 
 
@@ -128,6 +128,13 @@ def peak_rss_mb() -> float | None:
         peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         return round(peak / (1024 * 1024 if sys.platform == "darwin" else 1024), 1)
     except (ImportError, OSError):
+        return None
+
+
+def cgroup_peak_mb() -> float | None:
+    try:
+        return round(int(open("/sys/fs/cgroup/memory.peak").read()) / 2**20, 1)
+    except (OSError, ValueError):
         return None
 
 
@@ -241,7 +248,7 @@ def main() -> int:
                  ", ".join(f"{k} {int((markers['label'] == k).sum())}" for k in kept), timings["markers"])
 
         t = time.monotonic()
-        mot = R.motifs(markers, motif_file, gdir / "genome.fa.bgz")
+        mot = R.motifs(markers, motif_file, gdir, work)
         timings["motifs"] = round(time.monotonic() - t, 1)
 
         t = time.monotonic()
@@ -307,11 +314,11 @@ def main() -> int:
 
     write_json(out / "provenance.json", {
         "app": APP_NAME, "version": app_version(), "tools": tool_versions(), "parameters": params,
-        "inputs": {"atac": [rel(f) for f in found.atac], "labels": rel(found.labels), "cells": [rel(f) for f in found.rna]},
+        "inputs": [rel(f) for f in found.atac] + [rel(found.labels)] + [rel(f) for f in found.rna],
         "started": started.isoformat(timespec="seconds"), "finished": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "seconds": round(time.monotonic() - t0, 1), "timings": timings, "threads": threads, "genome": genome,
         "motifs": motif_file.name, "samples": [{"sample_id": f.stem, "input": rel(f), "status": "ok"} for f in found.atac],
-        "peak_rss_mb": peak_rss_mb(), "citations": CITATIONS,
+        "peak_rss_mb": peak_rss_mb(), "cgroup_peak_mb": cgroup_peak_mb(), "citations": CITATIONS,
     })
     log.info("%s: %d peaks, %d marker peaks, %d motif tests, %d links; peak RSS %s MB, %.1fs", out.name, summary["n_peaks"],
              summary["n_marker_peaks"], summary["n_motif_tests"], summary["links"]["n_links"], peak_rss_mb(),

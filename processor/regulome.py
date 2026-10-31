@@ -139,7 +139,19 @@ def marker_peaks(pm, labels: list[str], merged, params: dict, seed: int) -> pd.D
     return pd.concat(out, ignore_index=True) if out else pd.DataFrame(columns=cols)
 
 
-def motifs(markers: pd.DataFrame, motif_file: Path, fasta: Path) -> pd.DataFrame:
+def plain_fasta(genome_dir: Path, work: Path) -> Path:
+    """genome.fa.gz of the image, decompressed into the work folder with its prebuilt index (pyfaidx
+    reads a compressed chromosome from its start for every region, far too slow for thousands)."""
+    import shutil
+
+    fa = work / "genome.fa"
+    with gzip.open(genome_dir / "genome.fa.gz", "rb") as fin, open(fa, "wb") as fout:
+        shutil.copyfileobj(fin, fout, 1 << 24)
+    shutil.copyfile(genome_dir / "genome.fa.fai", work / "genome.fa.fai")    # newer than genome.fa: reused
+    return fa
+
+
+def motifs(markers: pd.DataFrame, motif_file: Path, genome_dir: Path, work: Path) -> pd.DataFrame:
     import snapatac2 as snap
 
     regions = {t: list(g["peak"]) for t, g in markers.groupby("label", sort=False)
@@ -153,7 +165,7 @@ def motifs(markers: pd.DataFrame, motif_file: Path, fasta: Path) -> pd.DataFrame
     for m in pfms:                       # MEME "MOTIF MA0004.1 Arnt": SnapATAC2 keeps both words in id
         m.id, _, name = m.id.partition(" ")
         m.name = name or m.id
-    res = snap.tl.motif_enrichment(pfms, regions, fasta)
+    res = snap.tl.motif_enrichment(pfms, regions, plain_fasta(genome_dir, work))
     out = []
     for t, df in res.items():
         d = df.to_pandas().rename(columns={"id": "motif_id", "name": "motif_name", "log2(fold change)": "log2_fold_change",

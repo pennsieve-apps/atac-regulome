@@ -72,7 +72,7 @@ def layout_genome(rng):
 
 
 def write_genome(root: Path, genes, sites, rng) -> Path:
-    from Bio import bgzf
+    from pyfaidx import Fasta
 
     d = root / "genomes" / "GRCh38"
     d.mkdir(parents=True, exist_ok=True)
@@ -93,15 +93,14 @@ def write_genome(root: Path, genes, sites, rng) -> Path:
         for off in (-60, 0, 60):
             p = centre + off - len(MOTIF_A) // 2
             seqs[chrom][p:p + len(MOTIF_A)] = list(MOTIF_A)
-    with bgzf.BgzfWriter(str(d / "genome.fa.bgz"), "wb") as fh:
+    with open(d / "genome.fa", "w") as fh:
         for c, s in seqs.items():
-            fh.write(f">{c}\n".encode())
             text = "".join(s)
-            for i in range(0, len(text), 60):
-                fh.write((text[i:i + 60] + "\n").encode())
-    from pyfaidx import Fasta
-
-    Fasta(str(d / "genome.fa.bgz")).close()      # .fai and .gzi, as the image builds them
+            fh.write(f">{c}\n" + "".join(text[i:i + 60] + "\n" for i in range(0, len(text), 60)))
+    Fasta(str(d / "genome.fa")).close()           # genome.fa.fai, as the image builds it
+    with open(d / "genome.fa", "rb") as fin, gzip.open(d / "genome.fa.gz", "wb") as fout:
+        fout.write(fin.read())
+    (d / "genome.fa").unlink()
     (root / "motifs.meme").write_text(MEME + pwm(MOTIF_A, "MA9001.1", "FIXA") + pwm("CCGCGGACGTACGCGG", "MA9002.1", "FIXB")
                                       + pwm("AATTTAAATTTAAATT", "MA9003.1", "FIXC"))
     return d.parent

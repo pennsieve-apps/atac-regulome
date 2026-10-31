@@ -40,9 +40,9 @@ def marker_heatmap(pseudobulk: pd.DataFrame, markers: pd.DataFrame, path: Path, 
     if markers.empty:
         return None
     plt = _plt()
-    peaks = (markers.sort_values("adjusted_p_value").groupby("label", sort=False).head(top)
-             .drop_duplicates("peak")["peak"].tolist())
     labels = list(pseudobulk.index)
+    top_of = markers.sort_values("adjusted_p_value").groupby("label").head(top)
+    peaks = list(dict.fromkeys(p for t in labels for p in top_of.loc[top_of["label"] == t, "peak"]))   # grouped by label
     m = np.log2(pseudobulk[peaks].to_numpy(dtype=float) + 1)
     z = (m - m.mean(axis=0)) / np.where(m.std(axis=0) > 0, m.std(axis=0), 1)
     f, a = plt.subplots(figsize=(8, max(3, 0.35 * len(labels) + 1.5)))

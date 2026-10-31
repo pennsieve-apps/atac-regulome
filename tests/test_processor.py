@@ -97,3 +97,20 @@ def test_labels_not_matching(fx, tmp_path, monkeypatch):
                                     {"MIN_CELLS": "0"}, {"LABEL_COLUMN": "a b"}])
 def test_bad_parameters(fx, tmp_path, monkeypatch, params):
     assert run(fx["linked"], tmp_path / "out", fx, monkeypatch, **params) == 2
+
+
+def test_platform_link_layout(fx, tmp_path, monkeypatch):
+    """As the platform stages a run: real port folders whose entries are symlinks into the upstream
+    apps' output folders (siblings of INPUT_DIR)."""
+    up = tmp_path / "upstream"
+    shutil.copytree(fx["linked"], up)
+    src = tmp_path / "in"
+    for port in ("atac", "labels", "cells"):
+        (src / port).mkdir(parents=True)
+        for f in (up / port).iterdir():
+            (src / port / f.name).symlink_to(f)
+    out = tmp_path / "out"
+    assert run(src, out, fx, monkeypatch) == 0
+    prov = json.loads((out / "cell-type" / "provenance.json").read_text())
+    assert "labels/labels.csv" in prov["inputs"] and len(prov["samples"]) == 2
+    assert len(rows(out / "cell-type" / "links.csv")) > 0

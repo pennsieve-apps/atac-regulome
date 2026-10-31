@@ -55,7 +55,8 @@ correlation across `tl.aggregate_cells` pseudo-cells of RPM accessibility and CP
   `snap.tl.aggregate_cells` (iterative Leiden, ≥ `PSEUDOCELL_SIZE` nuclei each) on the RNA
   embedding (`obsm["X_integrated"]` from sc-integrate, else `X_pca`, else a 30-component truncated
   SVD of log CPM); per pseudo-cell, peak RPM and gene CPM (from `layers["counts"]`, else `X`);
-  Spearman ρ for every peak–gene pair of the network; p from the t approximation with n − 2
+  Spearman ρ for every peak–gene pair of the network whose peak and gene are both detected in
+  ≥ 20 % (and ≥ 5) of the pseudo-cells (ties otherwise make ρ meaningless); p from the t approximation with n − 2
   degrees of freedom, BH-adjusted over all pairs. Kept: ρ ≥ `LINK_MIN_COR` and FDR < 0.05
   (positive links only, as ArchR's peak-to-gene links). SnapATAC2 2.10.0's `add_cor_scores`
   misaligns columns when every peak of the matrix is in the network (it then takes the matrix in
@@ -113,7 +114,79 @@ table per cell type is what the report shows), and builds links on SnapATAC2's p
 | `SEED` | `42` | Marker-test sampling, pseudo-cell clustering. |
 | `THREADS` | `0` | Threads and MACS3 worker processes (each worker needs ~1 GB, see Runtime); 0 = CPU quota. |
 
-RESULTS_AND_RUNTIME
+## Results on the demo data
+
+**Labels.** Discover 465's `meta.data.csv` has the authors' cell types, but they do not line up with
+its cell names: per-cell counts match the matrix (nCount_RNA r = 0.9997), while the "sample id"
+column is filled in blocks and the cell types show no marker-gene specificity in the RNA (C1QA,
+CD163, MPZ, PECAM1, DCN are detected equally in every "type"). So the demo labels are SnapATAC2
+Leiden clusters of the ATAC data (`scripts/demo_labels.py`, `LABEL_COLUMN=cluster`); RNA markers
+name them: C01, C02 SOX10⁺ glia (satellite glia / non-myelinating Schwann cells), C03 macrophages
+(CD163, F13A1, MRC1, PTPRC), C04 fibroblasts and vascular cells (DCN, PDGFRB; PECAM1, VWF), C05
+myelinating Schwann cells (MPZ, PRX), C06 T cells (PTPRC, CD3E).
+
+**Input.** atac-prep's output for the two-library cut of Discover 465, restricted to chr1–chr3
+(so the run takes minutes under emulation; see Runtime for the whole genome): 2,987 nuclei
+(1,609 + 1,378; fewer than on the whole genome because the per-nucleus fragment counts on three
+chromosomes fall below 1,000 for some), the RNA side linked. Outputs in
+`workflow-single-cell/data/work/sympathetic/atac-regulome/regulome/cluster/`.
+
+| Label | Nuclei | MACS3 peaks | Marker peaks (FDR < 0.01) | Top JASPAR motifs in marker peaks |
+|---|---|---|---|---|
+| C01 glia | 1,016 | 24,601 | 880 | SOX10, NFIA, NFIX, ZNF281, SOX8 |
+| C02 glia | 905 | 32,178 | 1,001 | SP1, SP4, PATZ1, ZNF148, ZNF281 |
+| C03 macrophages | 400 | 28,380 | 2,117 | Spi1 (PU.1), SPIB, SPIC, IKZF2, EHF |
+| C04 fibroblast / vascular | 331 | 32,326 | 1,772 | HAND2, TEAD2, NFATC1, NFATC3, TWIST1 |
+| C05 myelinating Schwann | 276 | 19,274 | 107 | KLF1, KLF15, KLF7, KLF10, ZBTB41 |
+| C06 T cells | 55 | 5,953 | 792 | FIGLA, ZEB1, ZEB2, TCF3, SNAI1 |
+
+Merged set: 78,989 peaks; 591 motif × label enrichments at FDR < 0.05. The motifs are the
+expected lineage factors (SOX10 in glia, PU.1/SPI family in macrophages, HAND2/TWIST1/TEAD in
+mesenchymal cells, E-box ZEB/TCF factors in lymphocytes). C05 has few marker peaks: myelinating
+Schwann cells share most open chromatin with the other glia. Peak-to-gene links: 26 pseudo-cells
+from 2,983 matched nuclei, 150,036 peak–gene pairs tested (both detected in ≥ 20 % of
+pseudo-cells), 28 kept (ρ ≥ 0.3, FDR < 0.05) — few, as expected with 26 pseudo-cells; a full
+dataset (tens of thousands of nuclei, hundreds of pseudo-cells) has far more power. Before the
+detection filter, genes seen in a single pseudo-cell gave spurious ρ ≈ 1 links; the filter removed
+them.
+
+The same nuclei on the **whole genome** (run stopped in the motif step before the FASTA fix; peaks
+and markers completed): 156,721 merged peaks; marker peaks C01 2,639, C02 3,119, C03 7,488,
+C04 5,700, C05 830, C06 2,716.
+
+## Runtime
+
+`computeTypes: [standard]`, 4 vCPU / 30 GiB, 12 h timeout. Measured in the linux/amd64 image under
+emulation on an M-series Mac (Docker `--user 1000`, `--memory 6g --cpus 4`, `THREADS=2`, `/tmp`
+on the container's disk):
+
+| Input | Wall time | Steps | Peak RSS | cgroup peak |
+|---|---|---|---|---|
+| chr1–3 cut: 2,987 nuclei, 79 k peaks, RNA linked | 451 s | peaks 46 s, markers 127 s, motifs 114 s (6,114 sequences × 1,019 motifs, incl. decompressing GRCh38), links 159 s | 1.46 GB | 3.21 GB (incl. page cache of the 3.1 GB decompressed genome) |
+| whole-genome cut: 4,001 nuclei, 157 k peaks | peaks 226 s; marker tests ≈ 55 min (container clock) | — | — | killed at 6 GB with `THREADS=4` during MACS3 |
+
+What drives memory and time on full data (estimates, extrapolated from these runs):
+- **MACS3** runs one worker process per label in parallel (up to `THREADS`); measured natively on
+  the whole-genome cut: the parent 2.8 GB while exporting insertions, each worker ~0.9 GB for
+  ~500 nuclei. Workers scale with a label's fragments, so a 20,000-nucleus label with ~10,000
+  fragments each is ~20× this cut's largest label: several GB per worker. `THREADS` caps how many
+  run at once.
+- **Peak matrix**: in memory, ~12 bytes per non-zero (CSR); 40,000 nuclei × ~5,000 open peaks each
+  ≈ 2.4 GB.
+- **Marker tests** (`snap.tl.diff_test`) fit two logistic regressions per tested peak in Python:
+  ~25 ms per peak for ~800 nuclei under emulation (measured: 6,346 peaks in ~3 min), linear in
+  `MAX_CELLS_PER_TEST`. Tens of labels on full
+  data: one to a few hours natively.
+- **Motifs**: the genome is decompressed to `/tmp` (3.1 GB GRCh38, 2.7 GB GRCm39); scanning is
+  ~14 µs per sequence × motif natively (measured: 1.4 s for 100 motifs × 1,000 sequences), so ~5 min for
+  20,000 marker peaks × 1,019 motifs.
+- **Disk** in `/tmp`: the decompressed genome plus MACS3's exported insertions of the labelled nuclei.
+
+30 GiB and 4 vCPU leave room for ~10 labels of a 40,000-nucleus multiome dataset at `THREADS=4`;
+lower `THREADS` before raising memory if MACS3 runs out.
+
+Image: 2.04 GB (SnapATAC2, MACS3, igraph, the GRCh38 and GRCm39 genomes gzip-compressed with
+their indexes, GENCODE annotations, JASPAR 2026).
 
 ## Running it locally
 

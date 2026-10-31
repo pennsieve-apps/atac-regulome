@@ -17,7 +17,8 @@ The analysis, with SnapATAC2 (Zhang et al. 2024) throughout:
 6. Peak-to-gene links (RNA linked): cells matched by obs_names; pseudo-cells by
    snap.tl.aggregate_cells on the RNA embedding; snap.tl.init_network_from_annotation (peaks
    within LINK_WINDOW_KB of a protein-coding gene's TSS) and, as snap.tl.add_cor_scores does, the
-   Spearman correlation over pseudo-cells of RPM accessibility and CPM expression (computed here:
+   Spearman correlation over pseudo-cells of RPM accessibility and CPM expression, for peaks and
+   genes detected in >= 20 % of the pseudo-cells (computed here:
    add_cor_scores misaligns columns in 2.10.0); a t-approximation p-value per link,
    BH-adjusted; links with rho >= LINK_MIN_COR and FDR < 0.05 are kept.
 """
@@ -37,6 +38,7 @@ log = logging.getLogger("atac-regulome")
 LINK_FDR = 0.05
 MOTIF_FDR = 0.05
 MIN_MARKERS_FOR_MOTIFS = 10
+MIN_DETECTED_FRACTION = 0.2
 
 
 def bh(p: np.ndarray) -> np.ndarray:
@@ -248,13 +250,17 @@ def links(pm, rna_files: list[Path], network, names: dict[str, str], params: dic
         norm = np.linalg.norm(R_, axis=0)
         return R_ / np.where(norm > 0, norm, np.nan)
 
+    # a peak or gene seen in only a few pseudo-cells gives ranks dominated by ties (ρ near 1 from one shared
+    # pseudo-cell): both must be non-zero in at least MIN_DETECTED_FRACTION of the pseudo-cells (and >= 5)
+    need = max(5, int(np.ceil(MIN_DETECTED_FRACTION * n)))
+    acc_ok, expr_ok = (acc > 0).sum(axis=0) >= need, (expr > 0).sum(axis=0) >= need
     acc_r, expr_r = ranked(acc), ranked(expr)
     pcol = {p: i for i, p in enumerate(pm.var_names)}
     gcol = {}
     for i, g in enumerate(genes):
         gcol.setdefault(g.upper(), i)
     edges = [(network[u].id, network[v].id, int(e.distance)) for u, v, e in network.weighted_edge_list()
-             if network[v].id in gcol]
+             if network[v].id in gcol and acc_ok[pcol[network[u].id]] and expr_ok[gcol[network[v].id]]]
     pi = np.array([pcol[p] for p, _, _ in edges], dtype=int)
     gi = np.array([gcol[g] for _, g, _ in edges], dtype=int)
     cor = np.einsum("ij,ij->j", acc_r[:, pi], expr_r[:, gi]) if len(edges) else np.array([])

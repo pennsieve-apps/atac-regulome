@@ -169,6 +169,14 @@ The per-label BED files are the input such an analysis needs; nothing else has t
   are. For GWAS overlap, filter peaks against the ENCODE blacklist first.
 - **Genomes.** GRCh38 and GRCm39 only (as atac-prep).
 
+## Security
+
+Inputs are read through `processor/safe_inputs.py`, vendored verbatim from
+`workflow-single-cell/shared/` (do not edit the copy): only files that resolve inside `INPUT_DIR` or
+the platform's links are used, `labels.csv` is size-capped, `.h5ad` files with external HDF5 links
+or storage are refused. The container runs as uid 1000 with a read-only root and writes only to
+`OUTPUT_DIR` and `/tmp`; genomes and motifs are read from the image.
+
 ## Licences
 
 Apache-2.0 for this app (`LICENSE`). The image bundles **python-igraph (GPL-2.0-or-later)**, used

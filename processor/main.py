@@ -187,7 +187,7 @@ def main() -> int:
             raise I.InputError("no atac-prep .h5ad (with obsm['fragment_paired']) found")
         if found.labels is None:
             raise I.InputError("no labels.csv found")
-        labels_of = I.read_labels(found.labels, params["LABEL_COLUMN"])
+        labels_of = I.read_labels(found.inp, found.labels, params["LABEL_COLUMN"])
         genome = genome_of(found.atac)
     except (I.InputError, OSError, ValueError) as exc:
         log.error("cannot use the inputs: %s", exc)

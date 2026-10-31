@@ -1,0 +1,21 @@
+services:
+  processor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    mem_limit: 3g
+    network_mode: none
+    read_only: true
+    tmpfs:
+      - /tmp
+    env_file:
+      - dev.env       # MIN_CELLS=20 and PSEUDOCELL_SIZE=10 for the small fixture
+    environment:
+      # the fixture's synthetic genome and motifs in place of the baked ones
+      GENOMES_DIR: /fixture/genomes
+      MOTIFS_FILE: /fixture/motifs.meme
+    volumes:
+      - ./data/fixture/linked:/data/input:ro
+      - ./data/fixture:/fixture:ro
+      - ./data/output:/data/output

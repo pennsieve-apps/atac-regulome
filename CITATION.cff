@@ -1,0 +1,565 @@
+cff-version: "1.2.0"
+message: If you use this app, please cite it and the works it builds on, listed under references.
+type: software
+title: ATAC Regulome
+abstract: Gene regulation per cell type from single-nucleus ATAC (multiome). Pseudobulk MACS3 peaks per
+  label through SnapATAC2, a merged peak set, marker peaks per label, JASPAR motif enrichment of the marker
+  peaks and, with the RNA side, peak-to-gene links from correlation across pseudo-cells.
+authors:
+- name: Pennsieve (University of Pennsylvania)
+repository-code: https://github.com/pennsieve-apps/atac-regulome
+license: Apache-2.0
+version: 0.1.0
+keywords:
+- single-cell
+- single-nucleus
+- multiome
+- atac-seq
+- genomics
+- gene-regulation
+references:
+- type: software
+  title: SnapATAC2
+  authors:
+  - family-names: Zhang
+    given-names: Kai
+  version: 2.10.0
+  license: MIT
+  repository-code: https://github.com/scverse/SnapATAC2
+- type: software
+  title: MACS3
+  authors:
+  - name: MACS3 project team
+  version: 3.0.5
+  license: BSD-3-Clause
+  repository-code: https://github.com/macs3-project/MACS
+- type: data
+  title: JASPAR 2026 CORE vertebrates non-redundant position frequency matrices (MEME format)
+  authors:
+  - name: JASPAR consortium
+  year: 2026
+  url: https://jaspar.elixir.no/download/data/2026/CORE/JASPAR2026_CORE_vertebrates_non-redundant_pfms_meme.txt
+  license: CC-BY-4.0
+- type: data
+  title: GENCODE basic gene annotation and primary assembly, human release 41 (GRCh38) and mouse release M30 (GRCm39)
+  authors:
+  - name: GENCODE consortium
+  url: https://www.gencodegenes.org
+  repository: https://ftp.ebi.ac.uk/pub/databases/gencode/
+- type: data
+  title: A single-cell multi-omic atlas of human sympathetic ganglia
+  authors:
+  - family-names: Yang
+    given-names: Lite
+    orcid: https://orcid.org/0000-0002-3647-6073
+  - family-names: Gereau
+    given-names: Robert
+    orcid: https://orcid.org/0000-0002-5428-4251
+  year: 2025
+  version: "1"
+  publisher:
+    name: SPARC Portal
+  doi: 10.26275/oqxx-si9h
+  url: https://sparc.science/datasets/465
+  license: CC-BY-4.0
+  notes: Demo data (Pennsieve Discover dataset 465). Probably described by the bioRxiv preprint below (same
+    authors and tissue; the dataset record does not link it).
+- type: article
+  title: 'A fast, scalable and versatile tool for analysis of single-cell omics data'
+  authors:
+  - family-names: 'Zhang'
+    given-names: 'Kai'
+  - family-names: 'Zemke'
+    given-names: 'Nathan R.'
+  - family-names: 'Armand'
+    given-names: 'Ethan J.'
+  - family-names: 'Ren'
+    given-names: 'Bing'
+  year: 2024
+  journal: 'Nature Methods'
+  volume: 21
+  issue: '2'
+  start: '217'
+  end: '227'
+  doi: 10.1038/s41592-023-02139-9
+  identifiers:
+  - type: other
+    value: 'pmid:38191932'
+    description: PubMed ID
+- type: article
+  title: 'Model-based Analysis of ChIP-Seq (MACS)'
+  authors:
+  - family-names: 'Zhang'
+    given-names: 'Yong'
+  - family-names: 'Liu'
+    given-names: 'Tao'
+  - family-names: 'Meyer'
+    given-names: 'Clifford A'
+  - family-names: 'Eeckhoute'
+    given-names: 'Jérôme'
+  - family-names: 'Johnson'
+    given-names: 'David S'
+  - family-names: 'Bernstein'
+    given-names: 'Bradley E'
+  - family-names: 'Nusbaum'
+    given-names: 'Chad'
+  - family-names: 'Myers'
+    given-names: 'Richard M'
+  - family-names: 'Brown'
+    given-names: 'Myles'
+  - family-names: 'Li'
+    given-names: 'Wei'
+  - family-names: 'Liu'
+    given-names: 'X Shirley'
+  year: 2008
+  journal: 'Genome Biology'
+  volume: 9
+  issue: '9'
+  start: 'R137'
+  doi: 10.1186/gb-2008-9-9-r137
+  identifiers:
+  - type: other
+    value: 'pmid:18798982'
+    description: PubMed ID
+- type: article
+  title: 'JASPAR 2026: expansion of transcription factor binding profiles and integration of deep learning models'
+  authors:
+  - family-names: 'Ovek Baydar'
+    given-names: 'Damla'
+  - family-names: 'Rauluseviciute'
+    given-names: 'Ieva'
+  - family-names: 'Aronsen'
+    given-names: 'Dina R'
+  - family-names: 'Blanc-Mathieu'
+    given-names: 'Romain'
+  - family-names: 'Bonthuis'
+    given-names: 'Ine'
+  - family-names: 'de Beukelaer'
+    given-names: 'Herman'
+  - family-names: 'Ferenc'
+    given-names: 'Katalin'
+  - family-names: 'Jegou'
+    given-names: 'Alice'
+  - family-names: 'Kumar'
+    given-names: 'Vipin'
+  - family-names: 'Lemma'
+    given-names: 'Roza Berhanu'
+  - family-names: 'Lucas'
+    given-names: 'Jérémy'
+  - family-names: 'Pochon'
+    given-names: 'Mathis'
+  - family-names: 'Yun'
+    given-names: 'Chang M'
+  - family-names: 'Ramalingam'
+    given-names: 'Vivekanandan'
+  - family-names: 'Deshpande'
+    given-names: 'Salil Sanjay'
+  - family-names: 'Patel'
+    given-names: 'Aman'
+  - family-names: 'Marinov'
+    given-names: 'Georgi K'
+  - family-names: 'Wang'
+    given-names: 'Austin T'
+  - family-names: 'Aguirre'
+    given-names: 'Alejandro'
+  - family-names: 'Castro-Mondragon'
+    given-names: 'Jaime A'
+  - family-names: 'Baranasic'
+    given-names: 'Damir'
+  - family-names: 'Chèneby'
+    given-names: 'Jeanne'
+  - family-names: 'Gundersen'
+    given-names: 'Sveinung'
+  - family-names: 'Johansen'
+    given-names: 'Morten'
+  - family-names: 'Khan'
+    given-names: 'Aziz'
+  - family-names: 'Kuijjer'
+    given-names: 'Marieke L'
+  - family-names: 'Hovig'
+    given-names: 'Eivind'
+  - family-names: 'Lenhard'
+    given-names: 'Boris'
+  - family-names: 'Sandelin'
+    given-names: 'Albin'
+  - family-names: 'Vandepoele'
+    given-names: 'Klaas'
+  - family-names: 'Wasserman'
+    given-names: 'Wyeth W'
+  - family-names: 'Parcy'
+    given-names: 'François'
+  - family-names: 'Kundaje'
+    given-names: 'Anshul'
+  - family-names: 'Mathelier'
+    given-names: 'Anthony'
+  year: 2026
+  journal: 'Nucleic Acids Research'
+  volume: 54
+  issue: 'D1'
+  start: 'D184'
+  end: 'D193'
+  doi: 10.1093/nar/gkaf1209
+  identifiers:
+  - type: other
+    value: 'pmid:41325984'
+    description: PubMed ID
+- type: article
+  title: 'GENCODE: reference annotation for the human and mouse genomes in 2023'
+  authors:
+  - family-names: 'Frankish'
+    given-names: 'Adam'
+  - family-names: 'Carbonell-Sala'
+    given-names: 'Sílvia'
+  - family-names: 'Diekhans'
+    given-names: 'Mark'
+  - family-names: 'Jungreis'
+    given-names: 'Irwin'
+  - family-names: 'Loveland'
+    given-names: 'Jane E'
+  - family-names: 'Mudge'
+    given-names: 'Jonathan M'
+  - family-names: 'Sisu'
+    given-names: 'Cristina'
+  - family-names: 'Wright'
+    given-names: 'James C'
+  - family-names: 'Arnan'
+    given-names: 'Carme'
+  - family-names: 'Barnes'
+    given-names: 'If'
+  - family-names: 'Banerjee'
+    given-names: 'Abhimanyu'
+  - family-names: 'Bennett'
+    given-names: 'Ruth'
+  - family-names: 'Berry'
+    given-names: 'Andrew'
+  - family-names: 'Bignell'
+    given-names: 'Alexandra'
+  - family-names: 'Boix'
+    given-names: 'Carles'
+  - family-names: 'Calvet'
+    given-names: 'Ferriol'
+  - family-names: 'Cerdán-Vélez'
+    given-names: 'Daniel'
+  - family-names: 'Cunningham'
+    given-names: 'Fiona'
+  - family-names: 'Davidson'
+    given-names: 'Claire'
+  - family-names: 'Donaldson'
+    given-names: 'Sarah'
+  - family-names: 'Dursun'
+    given-names: 'Cagatay'
+  - family-names: 'Fatima'
+    given-names: 'Reham'
+  - family-names: 'Giorgetti'
+    given-names: 'Stefano'
+  - family-names: 'Giron'
+    given-names: 'Carlos Garcıa'
+  - family-names: 'Gonzalez'
+    given-names: 'Jose Manuel'
+  - family-names: 'Hardy'
+    given-names: 'Matthew'
+  - family-names: 'Harrison'
+    given-names: 'Peter W'
+  - family-names: 'Hourlier'
+    given-names: 'Thibaut'
+  - family-names: 'Hollis'
+    given-names: 'Zoe'
+  - family-names: 'Hunt'
+    given-names: 'Toby'
+  - family-names: 'James'
+    given-names: 'Benjamin'
+  - family-names: 'Jiang'
+    given-names: 'Yunzhe'
+  - family-names: 'Johnson'
+    given-names: 'Rory'
+  - family-names: 'Kay'
+    given-names: 'Mike'
+  - family-names: 'Lagarde'
+    given-names: 'Julien'
+  - family-names: 'Martin'
+    given-names: 'Fergal J'
+  - family-names: 'Gómez'
+    given-names: 'Laura Martínez'
+  - family-names: 'Nair'
+    given-names: 'Surag'
+  - family-names: 'Ni'
+    given-names: 'Pengyu'
+  - family-names: 'Pozo'
+    given-names: 'Fernando'
+  - family-names: 'Ramalingam'
+    given-names: 'Vivek'
+  - family-names: 'Ruffier'
+    given-names: 'Magali'
+  - family-names: 'Schmitt'
+    given-names: 'Bianca M'
+  - family-names: 'Schreiber'
+    given-names: 'Jacob M'
+  - family-names: 'Steed'
+    given-names: 'Emily'
+  - family-names: 'Suner'
+    given-names: 'Marie-Marthe'
+  - family-names: 'Sumathipala'
+    given-names: 'Dulika'
+  - family-names: 'Sycheva'
+    given-names: 'Irina'
+  - family-names: 'Uszczynska-Ratajczak'
+    given-names: 'Barbara'
+  - family-names: 'Wass'
+    given-names: 'Elizabeth'
+  - family-names: 'Yang'
+    given-names: 'Yucheng T'
+  - family-names: 'Yates'
+    given-names: 'Andrew'
+  - family-names: 'Zafrulla'
+    given-names: 'Zahoor'
+  - family-names: 'Choudhary'
+    given-names: 'Jyoti S'
+  - family-names: 'Gerstein'
+    given-names: 'Mark'
+  - family-names: 'Guigo'
+    given-names: 'Roderic'
+  - family-names: 'Hubbard'
+    given-names: 'Tim J P'
+  - family-names: 'Kellis'
+    given-names: 'Manolis'
+  - family-names: 'Kundaje'
+    given-names: 'Anshul'
+  - family-names: 'Paten'
+    given-names: 'Benedict'
+  - family-names: 'Tress'
+    given-names: 'Michael L'
+  - family-names: 'Flicek'
+    given-names: 'Paul'
+  year: 2023
+  journal: 'Nucleic Acids Research'
+  volume: 51
+  issue: 'D1'
+  start: 'D942'
+  end: 'D949'
+  doi: 10.1093/nar/gkac1071
+  identifiers:
+  - type: other
+    value: 'pmid:36420896'
+    description: PubMed ID
+- type: article
+  title: 'Best practices for single-cell analysis across modalities'
+  authors:
+  - family-names: 'Heumos'
+    given-names: 'Lukas'
+  - family-names: 'Schaar'
+    given-names: 'Anna C.'
+  - family-names: 'Lance'
+    given-names: 'Christopher'
+  - family-names: 'Litinetskaya'
+    given-names: 'Anastasia'
+  - family-names: 'Drost'
+    given-names: 'Felix'
+  - family-names: 'Zappia'
+    given-names: 'Luke'
+  - family-names: 'Lücken'
+    given-names: 'Malte D.'
+  - family-names: 'Strobl'
+    given-names: 'Daniel C.'
+  - family-names: 'Henao'
+    given-names: 'Juan'
+  - family-names: 'Curion'
+    given-names: 'Fabiola'
+  - name: 'Single-cell Best Practices Consortium'
+  - family-names: 'Aliee'
+    given-names: 'Hananeh'
+  - family-names: 'Ansari'
+    given-names: 'Meshal'
+  - family-names: 'Badia-i-Mompel'
+    given-names: 'Pau'
+  - family-names: 'Büttner'
+    given-names: 'Maren'
+  - family-names: 'Dann'
+    given-names: 'Emma'
+  - family-names: 'Dimitrov'
+    given-names: 'Daniel'
+  - family-names: 'Dony'
+    given-names: 'Leander'
+  - family-names: 'Frishberg'
+    given-names: 'Amit'
+  - family-names: 'He'
+    given-names: 'Dongze'
+  - family-names: 'Hediyeh-zadeh'
+    given-names: 'Soroor'
+  - family-names: 'Hetzel'
+    given-names: 'Leon'
+  - family-names: 'Ibarra'
+    given-names: 'Ignacio L.'
+  - family-names: 'Jones'
+    given-names: 'Matthew G.'
+  - family-names: 'Lotfollahi'
+    given-names: 'Mohammad'
+  - family-names: 'Martens'
+    given-names: 'Laura D.'
+  - family-names: 'Müller'
+    given-names: 'Christian L.'
+  - family-names: 'Nitzan'
+    given-names: 'Mor'
+  - family-names: 'Ostner'
+    given-names: 'Johannes'
+  - family-names: 'Palla'
+    given-names: 'Giovanni'
+  - family-names: 'Patro'
+    given-names: 'Rob'
+  - family-names: 'Piran'
+    given-names: 'Zoe'
+  - family-names: 'Ramírez-Suástegui'
+    given-names: 'Ciro'
+  - family-names: 'Saez-Rodriguez'
+    given-names: 'Julio'
+  - family-names: 'Sarkar'
+    given-names: 'Hirak'
+  - family-names: 'Schubert'
+    given-names: 'Benjamin'
+  - family-names: 'Sikkema'
+    given-names: 'Lisa'
+  - family-names: 'Srivastava'
+    given-names: 'Avi'
+  - family-names: 'Tanevski'
+    given-names: 'Jovan'
+  - family-names: 'Virshup'
+    given-names: 'Isaac'
+  - family-names: 'Weiler'
+    given-names: 'Philipp'
+  - family-names: 'Schiller'
+    given-names: 'Herbert B.'
+  - family-names: 'Theis'
+    given-names: 'Fabian J.'
+  year: 2023
+  journal: 'Nature Reviews Genetics'
+  volume: 24
+  issue: '8'
+  start: '550'
+  end: '572'
+  doi: 10.1038/s41576-023-00586-w
+  identifiers:
+  - type: other
+    value: 'pmid:37002403'
+    description: PubMed ID
+- type: article
+  title: 'anndata: Access and store annotated data matrices'
+  authors:
+  - family-names: 'Virshup'
+    given-names: 'Isaac'
+  - family-names: 'Rybakov'
+    given-names: 'Sergei'
+  - family-names: 'Theis'
+    given-names: 'Fabian J.'
+  - family-names: 'Angerer'
+    given-names: 'Philipp'
+  - family-names: 'Wolf'
+    given-names: 'F. Alexander'
+  year: 2024
+  journal: 'Journal of Open Source Software'
+  volume: 9
+  issue: '101'
+  start: '4371'
+  doi: 10.21105/joss.04371
+- type: article
+  title: 'Heritability enrichment of specifically expressed genes identifies disease-relevant tissues and cell types'
+  authors:
+  - family-names: 'Finucane'
+    given-names: 'Hilary K.'
+  - family-names: 'Reshef'
+    given-names: 'Yakir A.'
+  - family-names: 'Anttila'
+    given-names: 'Verneri'
+  - family-names: 'Slowikowski'
+    given-names: 'Kamil'
+  - family-names: 'Gusev'
+    given-names: 'Alexander'
+  - family-names: 'Byrnes'
+    given-names: 'Andrea'
+  - family-names: 'Gazal'
+    given-names: 'Steven'
+  - family-names: 'Loh'
+    given-names: 'Po-Ru'
+  - family-names: 'Lareau'
+    given-names: 'Caleb'
+  - family-names: 'Shoresh'
+    given-names: 'Noam'
+  - family-names: 'Genovese'
+    given-names: 'Giulio'
+  - family-names: 'Saunders'
+    given-names: 'Arpiar'
+  - family-names: 'Macosko'
+    given-names: 'Evan'
+  - family-names: 'Pollack'
+    given-names: 'Samuela'
+  - name: 'The Brainstorm Consortium'
+  - family-names: 'Perry'
+    given-names: 'John R. B.'
+  - family-names: 'Buenrostro'
+    given-names: 'Jason D.'
+  - family-names: 'Bernstein'
+    given-names: 'Bradley E.'
+  - family-names: 'Raychaudhuri'
+    given-names: 'Soumya'
+  - family-names: 'McCarroll'
+    given-names: 'Steven'
+  - family-names: 'Neale'
+    given-names: 'Benjamin M.'
+  - family-names: 'Price'
+    given-names: 'Alkes L.'
+  year: 2018
+  journal: 'Nature Genetics'
+  volume: 50
+  issue: '4'
+  start: '621'
+  end: '629'
+  doi: 10.1038/s41588-018-0081-4
+  identifiers:
+  - type: other
+    value: 'pmid:29632380'
+    description: PubMed ID
+- type: unpublished
+  title: 'A multi-omic atlas of human autonomic and sensory ganglia implicates cell types in peripheral neuropathies'
+  authors:
+  - family-names: 'Yang'
+    given-names: 'Lite'
+  - family-names: 'Dourson'
+    given-names: 'Adam J.'
+  - family-names: 'Tao'
+    given-names: 'Ruichen'
+  - family-names: 'Boyer'
+    given-names: 'Kevin'
+  - family-names: 'Meriau'
+    given-names: 'Pauline'
+  - family-names: 'Del Rosario'
+    given-names: 'John'
+  - family-names: 'Yi'
+    given-names: 'Jiwon'
+  - family-names: 'Slivicki'
+    given-names: 'Richard A.'
+  - family-names: 'Bertels'
+    given-names: 'Zachariah'
+  - family-names: 'Payne'
+    given-names: 'Maria'
+  - family-names: 'Mwirigi'
+    given-names: 'Juliet M.'
+  - family-names: 'Gupta'
+    given-names: 'Prashant'
+  - family-names: 'Lemen'
+    given-names: 'John'
+  - family-names: 'Copits'
+    given-names: 'Bryan A.'
+  - family-names: 'Zhao'
+    given-names: 'Guoyan'
+  - family-names: 'Cavalli'
+    given-names: 'Valeria'
+  - family-names: 'Chamessian'
+    given-names: 'Alexander'
+  - family-names: 'Gereau'
+    given-names: 'Robert W.'
+  year: 2025
+  publisher:
+    name: 'bioRxiv'
+  doi: 10.1101/2025.09.18.677119
+  identifiers:
+  - type: other
+    value: 'pmid:41000833'
+    description: PubMed ID

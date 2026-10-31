@@ -1,0 +1,234 @@
+# atac-regulome
+
+Gene regulation per cell type from single-nucleus ATAC, the second step of the **Multiome Gene
+Regulation** workflow:
+
+- **B. Multiome Gene Regulation:** `atac-prep → atac-regulome (+ labels from sc-annotate) → sc-report`
+
+Genes are switched on and off by stretches of DNA (promoters, enhancers) that are open in the cell
+types that use them. Knowing which regions are open in, say, satellite glia but not in neurons
+points to the regulatory elements, and the transcription factors binding them, that make each cell
+type what it is, and to where disease-associated DNA variants may act. This app takes the ATAC half
+of a multiome dataset (from atac-prep) and cell-type labels for the same nuclei (from sc-annotate,
+or any labels), and for every cell type:
+
+1. pools its nuclei and finds the open regions (**peaks**) with MACS3;
+2. merges all cell types' peaks into one peak set and counts every nucleus in it;
+3. finds **marker peaks**, regions more open in this cell type than in the others;
+4. tests which transcription-factor **motifs** (JASPAR 2026) are over-represented in those marker
+   peaks, hinting at the factors that drive the cell type;
+5. when the RNA half is linked, **links peaks to genes**: a peak whose openness rises and falls
+   with a nearby gene's expression across groups of similar nuclei is a candidate regulator of it.
+
+For the computational analyst: SnapATAC2 end to end. A backed `AnnDataSet` over the samples (no
+copy); `tl.macs3` per label (pseudobulk of the label's Tn5 insertions, q < 0.05; chrM peaks dropped);
+`tl.merge_peaks` (summit ± 250 bp, overlaps resolved by significance); `pp.make_peak_matrix`;
+`tl.diff_test` (logistic-regression likelihood-ratio test, one label against an equal-share
+background of the others, over the peaks called in the label, BH FDR < 0.01) as in SnapATAC2's
+differential-accessibility tutorial; `tl.motif_enrichment` (hypergeometric, marker peaks of one
+label against the union of all labels' marker peaks) with the JASPAR 2026 CORE vertebrates
+non-redundant PFMs and sequences from the GENCODE genome built into the image;
+`tl.init_network_from_annotation` (peaks within 250 kb of protein-coding TSSs) and Spearman
+correlation across `tl.aggregate_cells` pseudo-cells of RPM accessibility and CPM expression.
+
+## Method details
+
+- **Labels.** `labels.csv` is joined on `obs_id` = the ATAC `obs_names` (`<sample_id>:<barcode>`,
+  the same names on both sides of a multiome run). Unlabelled nuclei and labels with fewer than
+  `MIN_CELLS` nuclei are left out (listed in `summary.json`). sc-annotate's `labels.csv` works as is;
+  the demo used the authors' cell types.
+- **Peaks.** MACS3 runs on each label's pooled insertions (SnapATAC2 shifts −100 bp and extends 200 bp,
+  `nolambda` off, summits called, fold enrichment ≥ 1). Labels are pooled across samples; peaks are
+  not required to replicate per sample (ArchR's pseudo-replicate scheme is not used).
+  `peaks/<label>.bed` holds the merged-set peaks that overlap the label's own calls.
+- **Marker peaks.** Per label at most `MAX_CELLS_PER_TEST` nuclei (seeded sample) against as many
+  background nuclei drawn equally from the other labels (the SnapATAC2 tutorial draws 30 per other
+  label; equal shares keep large labels from dominating). Tested peaks: those called in the label,
+  detected in ≥ 5 % of either group, log2 fold change ≥ 0.25 (SnapATAC2's pre-filter), not open in
+  every tested nucleus. `nearest_gene` / `distance_to_tss`: the closest protein-coding gene within
+  `LINK_WINDOW_KB` (empty when none).
+- **Motifs** need ≥ 2 labels with ≥ 10 marker peaks (the background is the union of all labels'
+  marker peaks, so a motif enriched in every cell type, e.g. CTCF, does not stand out).
+  `motifs.csv` has every motif × label; the summary and figure count `adjusted_p_value < 0.05`
+  with positive log2 fold change.
+- **Links** (RNA linked): nuclei present in both modalities; pseudo-cells from
+  `snap.tl.aggregate_cells` (iterative Leiden, ≥ `PSEUDOCELL_SIZE` nuclei each) on the RNA
+  embedding (`obsm["X_integrated"]` from sc-integrate, else `X_pca`, else a 30-component truncated
+  SVD of log CPM); per pseudo-cell, peak RPM and gene CPM (from `layers["counts"]`, else `X`);
+  Spearman ρ for every peak–gene pair of the network; p from the t approximation with n − 2
+  degrees of freedom, BH-adjusted over all pairs. Kept: ρ ≥ `LINK_MIN_COR` and FDR < 0.05
+  (positive links only, as ArchR's peak-to-gene links). SnapATAC2 2.10.0's `add_cor_scores`
+  misaligns columns when every peak of the matrix is in the network (it then takes the matrix in
+  storage order but pairs it with the network's node order), so the same correlation is computed
+  here directly.
+- **Two SnapATAC2 2.10.0 workarounds**, kept small and commented in `processor/regulome.py`:
+  `tl.macs3(selections=…)` returns nothing (it compares label names with internal indices), so
+  unlabelled nuclei form one extra group whose peaks are discarded; with one worker `tl.macs3`
+  leaves Python's temp directory pointing at a deleted folder, which is reset.
+
+Deviations from the best-practices guide (Heumos et al. 2023): it recommends peak calling per cell
+type with MACS2 and pseudo-replicates, chromVAR for motif activity and ArchR-style peak-to-gene
+links. This app calls peaks per type with MACS3 (MACS2's successor) without replicate filtering,
+tests motif over-representation in marker peaks instead of per-cell chromVAR deviations (one
+table per cell type is what the report shows), and builds links on SnapATAC2's pseudo-cells.
+
+## Ports
+
+| Port | Kind | Files | Notes |
+|---|---|---|---|
+| `atac` | input (subfolder) | `<sample_id>.h5ad` from atac-prep | All samples must name the same genome in `uns["pennsieve"]["genome"]`. |
+| `labels` | input (subfolder) | `labels.csv` (`obs_id` + `LABEL_COLUMN`) | From sc-annotate (`cell_type`) or sc-integrate (`cluster`). |
+| `cells` | input (subfolder, optional) | RNA `<sample_id>.h5ad` (sc-qc / sc-integrate / sc-annotate) | Only for peak-to-gene links. |
+| `regulome` | output | `<LABEL>/…` | Below. Unlinked, everything may sit side by side at the input root (ATAC files are recognised by their fragments). |
+
+## Outputs (`OUTPUT_DIR/<LABEL>/`)
+
+| File | Content |
+|---|---|
+| `peaks.bed` | The merged peak set: `chrom, start, end, name` (`chrom:start-end`), 501 bp each, GRCh38/GRCm39 coordinates (0-based starts). |
+| `peaks/<label>.bed` | The merged peaks called in that label (file names: label with characters outside `A-Za-z0-9_.-` replaced by `_`; mapping in `summary.json`). |
+| `marker_peaks.csv` | `label, peak, chrom, start, end, log2_fold_change, p_value, adjusted_p_value, n_cells, n_background, nearest_gene, distance_to_tss` (FDR < `MARKER_FDR`). |
+| `motifs.csv` | `label, motif_id, motif_name, log2_fold_change, p_value, adjusted_p_value` (JASPAR id and TF name; every motif × label tested). |
+| `links.csv` | RNA linked only: `peak, chrom, start, end, gene, distance_to_tss, correlation, p_value, adjusted_p_value, called_in` (labels whose peak calls contain the peak). |
+| `peaks_per_label.png` | Peaks called and marker peaks per label. |
+| `marker_peaks_heatmap.png` | z-scored pseudobulk accessibility of each label's top 20 marker peaks across labels. |
+| `motifs_heatmap.png` | −log10 adjusted p of each label's top 5 enriched motifs across labels. |
+| `links.png` | Kept links: correlation against distance to TSS. |
+| `summary.json` | Cells used and left out, peaks, per label: cells, peaks, marker peaks, top motifs, links, BED file; link statistics. |
+| `provenance.json` | Version, tools, parameters, inputs, timings, peak memory, citations. |
+
+## Parameters
+
+| Parameter | Default | What it does |
+|---|---|---|
+| `LABEL_COLUMN` | `cell_type` | Column of `labels.csv` to group by. |
+| `LABEL` | (empty) | Output folder; empty = `LABEL_COLUMN` with `_` → `-` (`cell-type`). |
+| `MIN_CELLS` | `50` | Labels with fewer nuclei are left out. |
+| `PEAK_QVALUE` | `0.05` | MACS3 q-value (SnapATAC2's default). |
+| `MAX_CELLS_PER_TEST` | `500` | Nuclei per label (and background) in a marker test. |
+| `MARKER_FDR` | `0.01` | Marker peak FDR (SnapATAC2 tutorial). |
+| `LINK_WINDOW_KB` | `250` | Peak–TSS distance for links and nearest genes (SnapATAC2's default, as ArchR). |
+| `LINK_MIN_COR` | `0.3` | Minimum Spearman ρ of a kept link. |
+| `PSEUDOCELL_SIZE` | `50` | Minimum nuclei per pseudo-cell (SnapATAC2's default). |
+| `SEED` | `42` | Marker-test sampling, pseudo-cell clustering. |
+| `THREADS` | `0` | Threads and MACS3 worker processes (each worker needs ~1 GB, see Runtime); 0 = CPU quota. |
+
+RESULTS_AND_RUNTIME
+
+## Running it locally
+
+```sh
+python3.12 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+make test PYTHON=.venv/bin/python       # pytest on the synthetic fixture (no Docker)
+make run PYTHON=.venv/bin/python        # build the image, run it over data/fixture/linked -> data/output
+make validate PYTHON=.venv/bin/python   # app.yml against the manifest schema, CITATION.cff
+```
+
+The fixture (`tests/make_fixture.py`, `sample-input/README.md`) plants type-specific sites, a motif
+in one type's sites and type-specific genes next to them; the tests check that the marker peaks are
+those sites, that the planted motif is that type's top motif and that the links recover the planted
+genes (≥ 90 % precision), in both input layouts, plus parameter and label errors.
+
+## Next: pain-GWAS SNP overlap (prepared, not built)
+
+The per-label BED files are the input such an analysis needs; nothing else has to change here.
+
+1. **Coordinates.** `peaks.bed` and `peaks/<label>.bed` are GRCh38 (GENCODE primary assembly,
+   `chr`-prefixed, 0-based starts). GWAS summary statistics on GRCh37/hg19 must be lifted over first
+   (UCSC liftOver or CrossMap with the hg19ToHg38 chain).
+2. **Simple overlap** (lead SNPs and their LD proxies, e.g. r² ≥ 0.8 in the matching 1000 Genomes
+   population): `bedtools intersect -u -a snps.bed -b peaks/<label>.bed` per label, enrichment
+   against the merged set or matched random regions (`bedtools shuffle -incl peaks.bed`), or GREGOR.
+   Report per label the fraction of credible SNPs in its peaks; `marker_peaks.csv` and `links.csv`
+   then name the nearby and linked genes of every hit.
+3. **Heritability enrichment** (the stronger test): stratified LD score regression with each
+   label's peaks as an annotation, conditioned on the baseline model and on the merged peak set
+   (`peaks.bed`) so that a cell type wins only for its specific regions — the LDSC-SEG design of
+   Finucane et al. (2018). Peaks are usually extended by ±500 bp (`bedtools slop`) to capture flanks.
+4. **Which GWAS.** Chronic pain phenotypes (multisite chronic pain, back, knee, neck/shoulder,
+   headache, osteoarthritis pain) from UK Biobank-scale studies or the consortia's own; the
+   choice and their licences belong to that future step, and so do the references.
+5. **Where.** A small light step (`atac-gwas`, Lambda-capable for simple overlap; S-LDSC needs the
+   LD scores and baseline model baked in, ~10 GB) taking `regulome` + a GWAS port, or a section of
+   sc-report.
+
+## Limitations
+
+- **Accessibility is not activity.** An open region in a cell type may be poised, repressed by
+  other means, or regulate a gene outside the window. Links are correlations across pseudo-cells of
+  the same dataset, not proof of regulation; they are strongest when the labels span very different
+  cell types and weakest within one type.
+- **Motif enrichment is not binding.** Families of factors share motifs (e.g. SOX, FOX, AP-1); a
+  hit names the family more reliably than the member. Expression of the factor (RNA) narrows it.
+- **Rare labels.** A label with few nuclei has few fragments: fewer peaks, few or no marker peaks
+  (the demo's 108 Neuronal_1 nuclei show it). `MIN_CELLS` removes the worst cases; merge sub-types
+  for a first look.
+- **Pooled samples.** Peaks and markers pool all samples of a label; sample or donor effects are
+  not modelled, and conditions are not compared (that is st-compare's job for RNA).
+- **No blacklist.** ENCODE blacklist regions (artefact-prone repeats) are not removed; chrM peaks
+  are. For GWAS overlap, filter peaks against the ENCODE blacklist first.
+- **Genomes.** GRCh38 and GRCm39 only (as atac-prep).
+
+## Licences
+
+Apache-2.0 for this app (`LICENSE`). The image bundles **python-igraph (GPL-2.0-or-later)**, used
+through SnapATAC2 for the pseudo-cell clustering; see `THIRD_PARTY.md` for it and every other
+component and data file (JASPAR 2026: CC BY 4.0; MACS3: BSD-3-Clause; SnapATAC2: MIT).
+
+## Credits
+
+- **SnapATAC2** (Kai Zhang, Bing Ren and colleagues; scverse): the whole analysis — peak calling
+  wrapper, merging, peak matrix, differential tests, motif scanning, gene network and pseudo-cells.
+- **MACS / MACS3** (Yong Zhang, Tao Liu, X. Shirley Liu and colleagues; the MACS3 project): peak
+  calling on each label's pseudobulk.
+- **JASPAR** (the JASPAR consortium; 2026 release): the transcription-factor motifs.
+- **GENCODE** (the GENCODE consortium): genome sequence and gene annotation for TSSs and links.
+- **anndata** (scverse): reading the RNA side.
+- **Single-cell best practices** (Heumos et al.): the reference for the analysis choices above.
+- **LDSC-SEG** (Hilary Finucane, Alkes Price and colleagues): the design proposed for the GWAS step.
+- **Demo data:** Lite Yang and Robert W. Gereau, *A single-cell multi-omic atlas of human
+  sympathetic ganglia*, SPARC / Pennsieve Discover 465, with the authors' cell types.
+
+## Citations
+
+> Zhang K, Zemke NR, Armand EJ, Ren B. **A fast, scalable and versatile tool for analysis of
+> single-cell omics data.** Nat Methods 21(2):217-227 (2024). https://doi.org/10.1038/s41592-023-02139-9,
+> PMID 38191932.
+
+> Zhang Y, Liu T, Meyer CA, Eeckhoute J, Johnson DS, Bernstein BE, Nusbaum C, Myers RM, Brown M,
+> Li W, Liu XS. **Model-based Analysis of ChIP-Seq (MACS).** Genome Biol 9(9):R137 (2008).
+> https://doi.org/10.1186/gb-2008-9-9-r137, PMID 18798982.
+
+> Ovek Baydar D, Rauluseviciute I, Aronsen DR, Blanc-Mathieu R, et al. (34 authors). **JASPAR 2026:
+> expansion of transcription factor binding profiles and integration of deep learning models.**
+> Nucleic Acids Res 54(D1):D184-D193 (2026). https://doi.org/10.1093/nar/gkaf1209, PMID 41325984.
+
+> Frankish A, Carbonell-Sala S, Diekhans M, et al. (62 authors). **GENCODE: reference annotation for
+> the human and mouse genomes in 2023.** Nucleic Acids Res 51(D1):D942-D949 (2023).
+> https://doi.org/10.1093/nar/gkac1071, PMID 36420896.
+
+> Heumos L, Schaar AC, Lance C, et al. (43 authors incl. the Single-cell Best Practices
+> Consortium). **Best practices for single-cell analysis across modalities.** Nat Rev Genet
+> 24(8):550-572 (2023). https://doi.org/10.1038/s41576-023-00586-w, PMID 37002403.
+
+> Virshup I, Rybakov S, Theis FJ, Angerer P, Wolf FA. **anndata: Access and store annotated data
+> matrices.** J Open Source Softw 9(101):4371 (2024). https://doi.org/10.21105/joss.04371 (not in
+> PubMed; checked on Crossref).
+
+> Finucane HK, Reshef YA, Anttila V, Slowikowski K, Gusev A, et al. (22 authors). **Heritability
+> enrichment of specifically expressed genes identifies disease-relevant tissues and cell types.**
+> Nat Genet 50(4):621-629 (2018). https://doi.org/10.1038/s41588-018-0081-4, PMID 29632380.
+
+Demo data:
+
+> Yang L, Gereau R. **A single-cell multi-omic atlas of human sympathetic ganglia** (Version 1)
+> [Data set]. SPARC Portal (2025). https://doi.org/10.26275/oqxx-si9h, CC BY 4.0 (checked on
+> DataCite and the Pennsieve Discover API, dataset 465). Probably described by: Yang L, Dourson AJ,
+> Tao R, et al. (18 authors), Gereau RW. **A multi-omic atlas of human autonomic and sensory ganglia
+> implicates cell types in peripheral neuropathies.** bioRxiv (2025).
+> https://doi.org/10.1101/2025.09.18.677119, PMID 41000833 (the dataset record does not link it).
+
+JASPAR 2026 is the current release (the 2024 release, doi:10.1093/nar/gkad1059, PMID 37962376, was
+the one first planned). Every DOI was checked on Crossref (DataCite for the
+dataset) and every PMID on PubMed; full author lists are in `CITATION.cff`, generated from the
+Crossref records. JASPAR's CC BY 4.0 licence was read on jaspar.elixir.no.

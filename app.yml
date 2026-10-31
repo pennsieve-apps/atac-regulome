@@ -1,0 +1,140 @@
+# yaml-language-server: $schema=https://schemas.pennsieve.io/app-manifest/v1.json
+schemaVersion: "1.0"
+application:
+  name: ATAC Regulome
+  description: >-
+    Gene regulation per cell type from single-nucleus ATAC (multiome). Joins atac-prep's samples with
+    cell labels (cell types from sc-annotate, or any labels.csv), calls pseudobulk peaks per label with
+    MACS3 through SnapATAC2, merges them into one peak set, finds marker peaks per label, tests JASPAR
+    2026 motifs for enrichment in them and, when the RNA side is linked, links peaks to genes by their
+    correlation across pseudo-cells. Writes BED files per label (ready for GWAS overlap), tables,
+    figures and a summary for the report. Genomes and motifs are built in; nothing is downloaded at run time.
+  type: processor
+  tags:
+    - single-cell
+    - single-nucleus
+    - multiome
+    - atac-seq
+    - genomics
+    - gene-regulation
+    - transcriptomics
+    - neuroscience
+    - pain
+    - musculoskeletal
+runtime:
+  cpu: 4096
+  # Sized from the measurement in the README "Runtime" (peak matrix + marker tests hold all labelled cells).
+  memory: 30720
+  computeTypes:
+    - standard
+  timeoutSeconds: 43200
+parameters:
+  - name: LABEL_COLUMN
+    type: string
+    label: Label column
+    description: Column of labels.csv that groups the cells (cell_type from sc-annotate, cluster from sc-integrate, ...).
+    defaultValue: cell_type
+  - name: LABEL
+    type: string
+    label: Output folder
+    description: >-
+      Name of the folder everything is written to (so several runs can feed one report); empty = the
+      label column with _ replaced by -.
+    defaultValue: ""
+  - name: MIN_CELLS
+    type: integer
+    label: Minimum cells per label
+    description: Labels with fewer cells are left out (too few fragments for a pseudobulk peak call).
+    defaultValue: 50
+    min: 1
+  - name: PEAK_QVALUE
+    type: number
+    label: Peak q-value
+    description: MACS3 q-value cutoff for the pseudobulk peaks (SnapATAC2's default).
+    defaultValue: 0.05
+    min: 0
+    max: 1
+  - name: MAX_CELLS_PER_TEST
+    type: integer
+    label: Cells per marker test
+    description: >-
+      Marker peaks: at most this many cells of the label, against as many background cells drawn
+      equally from every other label (seeded).
+    defaultValue: 500
+    min: 10
+  - name: MARKER_FDR
+    type: number
+    label: Marker peak FDR
+    description: Benjamini-Hochberg adjusted p-value below which a peak is a marker peak (SnapATAC2 tutorial value).
+    defaultValue: 0.01
+    min: 0
+    max: 1
+  - name: LINK_WINDOW_KB
+    type: integer
+    label: Link window (kb)
+    description: Peaks within this distance of a protein-coding gene's TSS are tested for a link to it.
+    defaultValue: 250
+    min: 1
+    max: 1000
+  - name: LINK_MIN_COR
+    type: number
+    label: Minimum link correlation
+    description: Peak-to-gene links need at least this Spearman correlation across pseudo-cells (and FDR < 0.05).
+    defaultValue: 0.3
+    min: -1
+    max: 1
+  - name: PSEUDOCELL_SIZE
+    type: integer
+    label: Pseudo-cell size
+    description: Minimum cells per pseudo-cell (SnapATAC2 aggregate_cells) for peak-to-gene correlation.
+    defaultValue: 50
+    min: 2
+  - name: SEED
+    type: integer
+    label: Seed
+    description: Seed of the cell sampling for marker tests and of the pseudo-cell clustering.
+    defaultValue: 42
+  - name: THREADS
+    type: integer
+    label: Threads
+    description: Threads (and MACS3 worker processes); 0 = from the container's CPU quota.
+    defaultValue: 0
+    min: 0
+inputs:
+  - name: atac
+    description: atac-prep's <sample_id>.h5ad files (SnapATAC2 AnnData with fragments; uns["pennsieve"]["genome"]).
+    placement: subfolder
+    required: true
+    formats:
+      - format_3590
+  - name: labels
+    description: >-
+      labels.csv with obs_id (= the ATAC obs_names, <sample_id>:<barcode>) and the label column, as
+      sc-annotate writes it (sample_id, obs_id, cell_type, cell_type_score).
+    placement: subfolder
+    required: true
+    mediaTypes:
+      - text/csv
+  - name: cells
+    description: >-
+      Optional: the RNA side (<sample_id>.h5ad from sc-qc, sc-integrate or sc-annotate), for peak-to-gene
+      links. Cells are matched to the ATAC cells by obs_names; uses layers["counts"] (else X) and
+      obsm X_integrated / X_pca when present.
+    placement: subfolder
+    required: false
+    formats:
+      - format_3590
+outputs:
+  - name: regulome
+    description: >-
+      <LABEL>/peaks.bed (merged 501 bp peaks, BED4), <LABEL>/peaks/<label>.bed (each label's peaks),
+      marker_peaks.csv (label, peak, chrom, start, end, log2_fold_change, p_value, adjusted_p_value,
+      n_cells, n_background, nearest_gene, distance_to_tss), motifs.csv (label, motif_id, motif_name,
+      log2_fold_change, p_value, adjusted_p_value), links.csv (with RNA: peak, chrom, start, end, gene,
+      distance_to_tss, correlation, p_value, adjusted_p_value, called_in), peaks_per_label.png,
+      marker_peaks_heatmap.png, motifs_heatmap.png, links.png, summary.json, provenance.json.
+    mediaTypes:
+      - text/csv
+      - text/plain
+      - image/png
+      - application/json

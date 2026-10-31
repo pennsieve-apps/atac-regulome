@@ -36,7 +36,7 @@ correlation across `tl.aggregate_cells` pseudo-cells of RPM accessibility and CP
 - **Labels.** `labels.csv` is joined on `obs_id` = the ATAC `obs_names` (`<sample_id>:<barcode>`,
   the same names on both sides of a multiome run). Unlabelled nuclei and labels with fewer than
   `MIN_CELLS` nuclei are left out (listed in `summary.json`). sc-annotate's `labels.csv` works as is;
-  the demo used the authors' cell types.
+  the demo used ATAC clusters (see Results).
 - **Peaks.** MACS3 runs on each label's pooled insertions (SnapATAC2 shifts −100 bp and extends 200 bp,
   `nolambda` off, summits called, fold enrichment ≥ 1). Labels are pooled across samples; peaks are
   not required to replicate per sample (ArchR's pseudo-replicate scheme is not used).
@@ -234,7 +234,7 @@ The per-label BED files are the input such an analysis needs; nothing else has t
 - **Motif enrichment is not binding.** Families of factors share motifs (e.g. SOX, FOX, AP-1); a
   hit names the family more reliably than the member. Expression of the factor (RNA) narrows it.
 - **Rare labels.** A label with few nuclei has few fragments: fewer peaks, few or no marker peaks
-  (the demo's 108 Neuronal_1 nuclei show it). `MIN_CELLS` removes the worst cases; merge sub-types
+  (the demo's 55-nucleus T-cell cluster, C06, has a fifth of the peaks of the others). `MIN_CELLS` removes the worst cases; merge sub-types
   for a first look.
 - **Pooled samples.** Peaks and markers pool all samples of a label; sample or donor effects are
   not modelled, and conditions are not compared (that is st-compare's job for RNA).
@@ -268,7 +268,7 @@ component and data file (JASPAR 2026: CC BY 4.0; MACS3: BSD-3-Clause; SnapATAC2:
 - **Single-cell best practices** (Heumos et al.): the reference for the analysis choices above.
 - **LDSC-SEG** (Hilary Finucane, Alkes Price and colleagues): the design proposed for the GWAS step.
 - **Demo data:** Lite Yang and Robert W. Gereau, *A single-cell multi-omic atlas of human
-  sympathetic ganglia*, SPARC / Pennsieve Discover 465, with the authors' cell types.
+  sympathetic ganglia*, SPARC / Pennsieve Discover 465.
 
 ## Citations
 

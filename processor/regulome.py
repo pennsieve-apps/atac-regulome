@@ -39,12 +39,14 @@ LINK_FDR = 0.05
 MOTIF_FDR = 0.05
 MIN_MARKERS_FOR_MOTIFS = 10
 MIN_DETECTED_FRACTION = 0.2
+GC_BINS = 20
+BACKGROUND_FACTOR = 3
 
 
 def bh(p: np.ndarray) -> np.ndarray:
-    from snapatac2.tools._diff import _p_adjust_bh
+    from scipy.stats import false_discovery_control
 
-    return _p_adjust_bh(p) if len(p) else np.array([])
+    return false_discovery_control(p, method="bh") if len(p) else np.array([])
 
 
 def split_peak(names) -> pd.DataFrame:
@@ -71,7 +73,8 @@ def gene_names(annotation: Path) -> dict[str, str]:
 UNUSED = "__not_analysed__"
 
 
-def call_peaks(ds, groups: list[str], labels: list[str], params: dict, chrom_sizes: dict, threads: int):
+def call_peaks(ds, groups: list[str], labels: list[str], params: dict, chrom_sizes: dict, threads: int,
+               blacklist: Path | None):
     """MACS3 per label. Cells outside `labels` form one extra group whose peaks are discarded:
     snap.tl.macs3's `selections` returns nothing in SnapATAC2 2.10.0 (it compares label names with
     the internal group indices)."""
@@ -80,7 +83,7 @@ def call_peaks(ds, groups: list[str], labels: list[str], params: dict, chrom_siz
 
     groups = [g if g in labels else UNUSED for g in groups]
     peaks = snap.tl.macs3(ds, groupby=groups, qvalue=params["PEAK_QVALUE"], inplace=False, n_jobs=threads,
-                          tempdir=Path("/tmp"))
+                          tempdir=Path("/tmp"), blacklist=blacklist)
     tempfile.tempdir = None   # with n_jobs=1 snap.tl.macs3 leaves it pointing at its deleted temporary folder
     peaks = {k: v.filter(pl.col("chrom") != "chrM") for k, v in peaks.items() if k in labels}
     merged = snap.tl.merge_peaks(peaks, chrom_sizes)
@@ -153,34 +156,72 @@ def plain_fasta(genome_dir: Path, work: Path) -> Path:
     return fa
 
 
-def motifs(markers: pd.DataFrame, motif_file: Path, genome_dir: Path, work: Path) -> pd.DataFrame:
+def gc_content(fasta: Path, peaks: list[str]) -> np.ndarray:
+    from pyfaidx import Fasta
+
+    loc = split_peak(peaks)
+    gc = np.empty(len(peaks))
+    with Fasta(str(fasta), one_based_attributes=False, sequence_always_upper=True) as g:
+        for i, (c, a, b) in enumerate(zip(loc["chrom"], loc["start"], loc["end"])):
+            seq = g[c][int(a):int(b)].seq
+            gc[i] = (seq.count("G") + seq.count("C")) / max(len(seq), 1)
+    return gc
+
+
+def gc_matched_background(peaks: list[str], gc: np.ndarray, markers: set[str], fg: list[str], seed: int) -> list[str]:
+    """Peaks that are no label's marker, drawn so their GC distribution (20 bins) matches `fg`'s:
+    BACKGROUND_FACTOR times as many per bin as `fg` has (a larger background steadies the binomial
+    test's expected rate), fewer when the bin runs out."""
+    rng = np.random.default_rng(seed)
+    bins = np.minimum((gc * GC_BINS).astype(int), GC_BINS - 1)
+    pool = np.array([p not in markers for p in peaks])
+    bin_of = dict(zip(peaks, bins))
+    want = BACKGROUND_FACTOR * np.bincount([bin_of[p] for p in fg], minlength=GC_BINS)
+    out = []
+    for b in range(GC_BINS):
+        cand = np.flatnonzero(pool & (bins == b))
+        if want[b] and len(cand):
+            out += [peaks[i] for i in rng.choice(cand, size=min(int(want[b]), len(cand)), replace=False)]
+    return out
+
+
+def motifs(markers: pd.DataFrame, peaks: list[str], motif_file: Path, genome_dir: Path, work: Path,
+           seed: int) -> tuple[pd.DataFrame, dict]:
     import snapatac2 as snap
 
     regions = {t: list(g["peak"]) for t, g in markers.groupby("label", sort=False)
                if len(g) >= MIN_MARKERS_FOR_MOTIFS}
     cols = ["label", "motif_id", "motif_name", "log2_fold_change", "p_value", "adjusted_p_value"]
-    if len(regions) < 2:
-        log.warning("motif enrichment skipped: needs >= 2 labels with >= %d marker peaks (have %d)",
-                    MIN_MARKERS_FOR_MOTIFS, len(regions))
-        return pd.DataFrame(columns=cols)
+    if not regions:
+        log.warning("motif enrichment skipped: no label has >= %d marker peaks", MIN_MARKERS_FOR_MOTIFS)
+        return pd.DataFrame(columns=cols), {}
+    fasta = plain_fasta(genome_dir, work)
+    gc = gc_content(fasta, peaks)
+    gc_of = dict(zip(peaks, gc))
+    union = {p for r in regions.values() for p in r}
     pfms = snap.read_motifs(str(motif_file))
     for m in pfms:                       # MEME "MOTIF MA0004.1 Arnt": SnapATAC2 keeps both words in id
         m.id, _, name = m.id.partition(" ")
         m.name = name or m.id
-    res = snap.tl.motif_enrichment(pfms, regions, plain_fasta(genome_dir, work))
-    out = []
-    for t, df in res.items():
+    info, out = {}, []
+    for t, fg in regions.items():
+        # each label against its own GC-matched draw from the peaks that are no label's marker
+        background = gc_matched_background(peaks, gc, union, fg, seed)
+        info[t] = {"marker_gc": round(float(np.mean([gc_of[p] for p in fg])), 3), "background_peaks": len(background),
+                   "background_gc": round(float(np.mean([gc_of[p] for p in background])), 3) if background else None}
+        df = snap.tl.motif_enrichment(pfms, {t: fg}, fasta, background=background, method="binomial")[t]
         d = df.to_pandas().rename(columns={"id": "motif_id", "name": "motif_name", "log2(fold change)": "log2_fold_change",
                                            "p-value": "p_value", "adjusted p-value": "adjusted_p_value"})
         d.insert(0, "label", t)
         out.append(d[cols])
-    return pd.concat(out, ignore_index=True).sort_values(["label", "p_value"], kind="stable")
+    return pd.concat(out, ignore_index=True).sort_values(["label", "p_value"], kind="stable"), info
 
 
 def rna_matrix(rna_files: list[Path], cells: list[str]) -> tuple[list[str], sp.csr_matrix, np.ndarray, list[str]]:
     """The cells of `cells` (in that order) found in the RNA files: their counts (layers['counts'],
-    else X) over the genes every file has, and an embedding (obsm X_integrated, else X_pca, else a
-    30-component truncated SVD of log CPM)."""
+    else X) over the genes every file has, and an embedding: sc-integrate's obsm X_integrated (one
+    space for all samples) when every file has it, else a 30-component truncated SVD of log CPM over
+    all matched cells (per-sample X_pca are separate spaces and cannot be stacked)."""
     import anndata as ad
 
     want = set(cells)
@@ -193,14 +234,17 @@ def rna_matrix(rna_files: list[Path], cells: list[str]) -> tuple[list[str], sp.c
         a = a[hit]
         names += list(a.obs_names)
         mats.append((list(a.var_names), sp.csr_matrix(a.layers["counts"] if "counts" in a.layers else a.X)))
-        rep = next((k for k in ("X_integrated", "X_pca") if k in a.obsm), None)
-        embs.append(np.asarray(a.obsm[rep]) if rep else None)
+        embs.append(np.asarray(a.obsm["X_integrated"]) if "X_integrated" in a.obsm else None)
         gene_lists.append(list(a.var_names))
     if not names:
         return [], sp.csr_matrix((0, 0)), np.zeros((0, 0)), []
     common = set.intersection(*(set(g) for g in gene_lists))
     genes = [g for g in gene_lists[0] if g in common]
-    X = sp.vstack([M[:, [{x: i for i, x in enumerate(g)}[x] for x in genes]] for g, M in mats]).tocsr()
+    cols = []
+    for g, M in mats:
+        index = {x: i for i, x in enumerate(g)}
+        cols.append(M[:, [index[x] for x in genes]])
+    X = sp.vstack(cols).tocsr()
     order = {n: i for i, n in enumerate(names)}
     matched = [c for c in cells if c in order]
     sel = [order[c] for c in matched]

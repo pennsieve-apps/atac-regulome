@@ -64,6 +64,23 @@ references:
   license: CC-BY-4.0
   notes: Demo data (Pennsieve Discover dataset 465). Probably described by the bioRxiv preprint below (same
     authors and tissue; the dataset record does not link it).
+- type: generic
+  title: Nuclear extraction using opti-prep gradient centrifugation for 10X Genomics Multiome Assay v1
+  authors:
+  - family-names: Yang
+    given-names: Lite
+  - family-names: Meriau
+    given-names: Pauline
+  - family-names: Cavalli
+    given-names: Valeria
+  - family-names: Gereau
+    given-names: Robert W.
+  year: 2024
+  publisher:
+    name: protocols.io
+  doi: 10.17504/protocols.io.5jyl8q4y8l2w/v1
+  notes: The demo dataset's protocol (Discover 465 IsSupplementedBy). Crossref lists the last author as
+    family name "W. Gereau", given name "Robert".
 - type: article
   title: 'A fast, scalable and versatile tool for analysis of single-cell omics data'
   authors:
@@ -124,7 +141,7 @@ references:
 - type: article
   title: 'JASPAR 2026: expansion of transcription factor binding profiles and integration of deep learning models'
   authors:
-  - family-names: 'Ovek Baydar'
+  - family-names: 'Ovek Baydar'
     given-names: 'Damla'
   - family-names: 'Rauluseviciute'
     given-names: 'Ieva'
@@ -134,7 +151,7 @@ references:
     given-names: 'Romain'
   - family-names: 'Bonthuis'
     given-names: 'Ine'
-  - family-names: 'de Beukelaer'
+  - family-names: 'de Beukelaer'
     given-names: 'Herman'
   - family-names: 'Ferenc'
     given-names: 'Katalin'
@@ -157,13 +174,13 @@ references:
   - family-names: 'Patel'
     given-names: 'Aman'
   - family-names: 'Marinov'
-    given-names: 'Georgi K'
+    given-names: 'Georgi K'
   - family-names: 'Wang'
     given-names: 'Austin T'
   - family-names: 'Aguirre'
     given-names: 'Alejandro'
   - family-names: 'Castro-Mondragon'
-    given-names: 'Jaime A'
+    given-names: 'Jaime A'
   - family-names: 'Baranasic'
     given-names: 'Damir'
   - family-names: 'Chèneby'
@@ -185,7 +202,7 @@ references:
   - family-names: 'Vandepoele'
     given-names: 'Klaas'
   - family-names: 'Wasserman'
-    given-names: 'Wyeth W'
+    given-names: 'Wyeth W'
   - family-names: 'Parcy'
     given-names: 'François'
   - family-names: 'Kundaje'
@@ -215,13 +232,13 @@ references:
   - family-names: 'Jungreis'
     given-names: 'Irwin'
   - family-names: 'Loveland'
-    given-names: 'Jane E'
+    given-names: 'Jane E'
   - family-names: 'Mudge'
-    given-names: 'Jonathan M'
+    given-names: 'Jonathan M'
   - family-names: 'Sisu'
     given-names: 'Cristina'
   - family-names: 'Wright'
-    given-names: 'James C'
+    given-names: 'James C'
   - family-names: 'Arnan'
     given-names: 'Carme'
   - family-names: 'Barnes'
@@ -253,13 +270,13 @@ references:
   - family-names: 'Giorgetti'
     given-names: 'Stefano'
   - family-names: 'Giron'
-    given-names: 'Carlos Garcıa'
+    given-names: 'Carlos Garcıa'
   - family-names: 'Gonzalez'
-    given-names: 'Jose Manuel'
+    given-names: 'Jose Manuel'
   - family-names: 'Hardy'
     given-names: 'Matthew'
   - family-names: 'Harrison'
-    given-names: 'Peter W'
+    given-names: 'Peter W'
   - family-names: 'Hourlier'
     given-names: 'Thibaut'
   - family-names: 'Hollis'
@@ -277,9 +294,9 @@ references:
   - family-names: 'Lagarde'
     given-names: 'Julien'
   - family-names: 'Martin'
-    given-names: 'Fergal J'
+    given-names: 'Fergal J'
   - family-names: 'Gómez'
-    given-names: 'Laura Martínez'
+    given-names: 'Laura Martínez'
   - family-names: 'Nair'
     given-names: 'Surag'
   - family-names: 'Ni'
@@ -291,9 +308,9 @@ references:
   - family-names: 'Ruffier'
     given-names: 'Magali'
   - family-names: 'Schmitt'
-    given-names: 'Bianca M'
+    given-names: 'Bianca M'
   - family-names: 'Schreiber'
-    given-names: 'Jacob M'
+    given-names: 'Jacob M'
   - family-names: 'Steed'
     given-names: 'Emily'
   - family-names: 'Suner'
@@ -307,13 +324,13 @@ references:
   - family-names: 'Wass'
     given-names: 'Elizabeth'
   - family-names: 'Yang'
-    given-names: 'Yucheng T'
+    given-names: 'Yucheng T'
   - family-names: 'Yates'
     given-names: 'Andrew'
   - family-names: 'Zafrulla'
     given-names: 'Zahoor'
   - family-names: 'Choudhary'
-    given-names: 'Jyoti S'
+    given-names: 'Jyoti S'
   - family-names: 'Gerstein'
     given-names: 'Mark'
   - family-names: 'Guigo'
@@ -327,7 +344,7 @@ references:
   - family-names: 'Paten'
     given-names: 'Benedict'
   - family-names: 'Tress'
-    given-names: 'Michael L'
+    given-names: 'Michael L'
   - family-names: 'Flicek'
     given-names: 'Paul'
   year: 2023
@@ -555,6 +572,7 @@ references:
     given-names: 'Alexander'
   - family-names: 'Gereau'
     given-names: 'Robert W.'
+    name-suffix: IV
   year: 2025
   publisher:
     name: 'bioRxiv'
@@ -562,4 +580,23 @@ references:
   identifiers:
   - type: other
     value: 'pmid:41000833'
+    description: PubMed ID
+- type: article
+  title: 'The ENCODE Blacklist: Identification of Problematic Regions of the Genome'
+  authors:
+  - family-names: 'Amemiya'
+    given-names: 'Haley M.'
+  - family-names: 'Kundaje'
+    given-names: 'Anshul'
+  - family-names: 'Boyle'
+    given-names: 'Alan P.'
+  year: 2019
+  journal: 'Scientific Reports'
+  volume: 9
+  issue: '1'
+  start: '9354'
+  doi: 10.1038/s41598-019-45839-z
+  identifiers:
+  - type: other
+    value: 'pmid:31249361'
     description: PubMed ID

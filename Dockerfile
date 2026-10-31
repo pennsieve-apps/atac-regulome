@@ -1,4 +1,5 @@
-# --- MACS3 has no wheels on PyPI: build one (pinned compiler and build tools) -------------------
+# --- MACS3 has no wheels on PyPI: build one (pinned compiler and build tools). 3.0.5 is the newest
+# release SnapATAC2 2.10.0 accepts (it requires macs3 >= 3.0.3, < 3.1). ---------------------------
 FROM --platform=linux/amd64 python:3.12.16-slim-bookworm@sha256:e697c81897302a4c4333bade000d98038fbb21eb064f8ee1fd42d02ebcd9d337 AS macs3
 RUN apt-get update \
     && apt-get install -y --no-install-recommends gcc=4:12.2.0-3 libc6-dev=2.36-9+deb12u14 zlib1g-dev=1:1.2.13.dfsg-1 \
@@ -27,6 +28,10 @@ ADD --checksum=sha256:4fac949d7021cbe11117ddab8ec1960004df423d672446cadfbc8cca80
     https://exampledata.scverse.org/snapatac2/gencode_v41_GRCh38.fa.gz /src/GRCh38.fa.gz
 ADD --checksum=sha256:3b923c06a0d291fe646af6bf7beaed7492bf0f6dd5309d4f5904623cab41b0aa \
     https://exampledata.scverse.org/snapatac2/gencode_vM30_GRCm39.fa.gz /src/GRCm39.fa.gz
+# ENCODE exclusion list v2 for GRCh38 (Amemiya et al. 2019) from the ENCODE portal (ENCFF356LFX); none
+# exists for GRCm39.
+ADD --checksum=sha256:a9d086ce90ca67f933b29adfbff56ea768bbce2ec4b0d51e2d405e5a1d61bb56 \
+    https://www.encodeproject.org/files/ENCFF356LFX/@@download/ENCFF356LFX.bed.gz /opt/genomes/GRCh38/blacklist.bed.gz
 ADD --checksum=sha256:ae4f77a17256c7b8b7b73402810c1ecf4fc411e9ad7832cdc87d586dee9a4a15 \
     https://jaspar.elixir.no/download/data/2026/CORE/JASPAR2026_CORE_vertebrates_non-redundant_pfms_meme.txt /opt/motifs/
 COPY scripts/primary_fasta.py /src/

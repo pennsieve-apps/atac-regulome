@@ -20,6 +20,10 @@ class InputError(ValueError):
     pass
 
 
+class MissingColumn(InputError):
+    """LABEL_COLUMN (or obs_id) is not in labels.csv: a parameter error (exit 2)."""
+
+
 def is_atac(path: Path) -> bool:
     import h5py
 
@@ -42,14 +46,14 @@ def discover(root: Path) -> Found:
     inp = InputDir(root)
     files = inp.walk()
     port = lambda name, f: not (root / name).is_dir() or f.is_relative_to(root / name)  # noqa: E731
-    h5ads = [f for f in files if f.suffix.lower() == ".h5ad"]
+    h5ads = [f for f in files if f.suffix.lower() == ".h5ad" and (port("atac", f) or port("cells", f))]
+    for f in h5ads:
+        inp.check_h5(f)               # no external links or external storage reaching outside the input
     atac = [f for f in h5ads if port("atac", f) and is_atac(f)]
     rna = [f for f in h5ads if f not in atac and port("cells", f) and not is_atac(f)]
     labels = [f for f in files if f.name == "labels.csv" and port("labels", f)]
     if len(labels) > 1:
         raise InputError("several labels.csv: " + ", ".join(str(p.relative_to(root)) for p in labels))
-    for f in atac + rna:
-        inp.check_h5(f)               # no external links or external storage reaching outside the input
     return Found(inp=inp, atac=atac, labels=labels[0] if labels else None, rna=rna)
 
 
@@ -58,7 +62,7 @@ def read_labels(inp: InputDir, path: Path, column: str) -> pd.Series:
     df = inp.read_csv(path, MAX_LABELS_BYTES, dtype=str, keep_default_na=False)
     for c in ("obs_id", column):
         if c not in df.columns:
-            raise InputError(f"{path.name} has no {c!r} column (columns: {', '.join(df.columns)})")
+            raise MissingColumn(f"{path.name} has no {c!r} column (columns: {', '.join(df.columns)})")
     df = df[["obs_id", column]]
     df = df[df[column].str.strip() != ""]
     if df["obs_id"].duplicated().any():

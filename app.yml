@@ -23,7 +23,8 @@ application:
     - musculoskeletal
 runtime:
   cpu: 4096
-  # Sized from the measurement in the README "Runtime" (peak matrix + marker tests hold all labelled cells).
+  # Estimate, extrapolated from the chr1-3 demo cut (1.5 GB RSS, 3.2 GB cgroup peak for 2,987 nuclei) to a
+  # 40,000-nucleus dataset (README "Runtime"); a platform run on full data will measure it.
   memory: 30720
   computeTypes:
     - standard

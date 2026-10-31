@@ -3,7 +3,7 @@ A tiny synthetic input in the shapes atac-regulome reads, plus a tiny genome and
 
   python -m tests.make_fixture data/fixture [--layout linked|flat|both]
 
-writes data/fixture/genomes/GRCh38/ (annotation.gff3.gz, chrom_sizes.tsv, genome.fa.bgz: two
+writes data/fixture/genomes/GRCh38/ (annotation.gff3.gz, chrom_sizes.tsv, blacklist.bed.gz, genome.fa.bgz: two
 short random chromosomes with 60 genes; read through GENOMES_DIR), data/fixture/motifs.meme (three
 motifs; read through MOTIFS_FILE) and data/fixture/<layout>/ with
 
@@ -29,6 +29,7 @@ import pandas as pd
 CHROMS = {"chr1": 3_000_000, "chr2": 2_000_000, "chrM": 16_569}
 TYPES = ("TypeA", "TypeB", "TypeC")
 N_PER_TYPE, N_RARE, N_SITES, N_GENES = 100, 10, 40, 60
+BLACKLISTED = 5
 SAMPLES = ("s1", "s2")
 MOTIF_A = "TTGACCGTCAAGGTCA"      # planted in TypeA's sites (motif MA9001.1 FIXA)
 MEME = """MEME version 4
@@ -77,6 +78,9 @@ def write_genome(root: Path, genes, sites, rng) -> Path:
     d = root / "genomes" / "GRCh38"
     d.mkdir(parents=True, exist_ok=True)
     (d / "chrom_sizes.tsv").write_text("".join(f"{c}\t{n}\n" for c, n in CHROMS.items()))
+    with gzip.open(d / "blacklist.bed.gz", "wt") as fh:      # the first BLACKLISTED TypeA sites
+        for chrom, centre in sorted(sites["TypeA"][:BLACKLISTED]):
+            fh.write(f"{chrom}\t{centre - 1000}\t{centre + 1000}\n")
     with gzip.open(d / "annotation.gff3.gz", "wt") as fh:
         fh.write("##gff-version 3\n")
         for i, (chrom, tss, strand, name) in enumerate(genes):

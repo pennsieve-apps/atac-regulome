@@ -58,6 +58,7 @@ CITATIONS = [   # each checked on Crossref and PubMed (README "Citations")
     {"doi": "10.1093/nar/gkac1071", "pmid": "36420896", "text": "Frankish A et al. Nucleic Acids Res 2023"},
     {"doi": "10.1038/s41576-023-00586-w", "pmid": "37002403", "text": "Heumos L et al. Nat Rev Genet 2023"},
 ]
+BLACKLIST_CITATION = {"doi": "10.1038/s41598-019-45839-z", "pmid": "31249361", "text": "Amemiya HM et al. Sci Rep 2019"}
 
 
 class ParameterError(ValueError):
@@ -194,7 +195,11 @@ def main() -> int:
             raise I.InputError("no atac-prep .h5ad (with obsm['fragment_paired']) found")
         if found.labels is None:
             raise I.InputError("no labels.csv found")
-        labels_of = I.read_labels(found.inp, found.labels, params["LABEL_COLUMN"])
+        try:
+            labels_of = I.read_labels(found.inp, found.labels, params["LABEL_COLUMN"])
+        except I.MissingColumn as exc:
+            log.error("bad parameter: %s", exc)
+            return 2
         genome = genome_of(found.atac)
     except (I.InputError, OSError, ValueError) as exc:
         log.error("cannot use the inputs: %s", exc)
@@ -224,7 +229,11 @@ def main() -> int:
         if not kept:
             raise ValueError(f"no label has {params['MIN_CELLS']} or more cells (labels matched {int((lab != '').sum())} "
                              "of the atac cells; obs_id must equal the atac obs_names <sample_id>:<barcode>)")
-        n_called, merged = R.call_peaks(ds, list(lab), kept, params, chrom_sizes, threads)
+        blacklist = gdir / "blacklist.bed.gz"
+        blacklist = blacklist if blacklist.is_file() else None
+        if blacklist is None:
+            log.warning("no ENCODE blacklist for %s: peaks in artefact-prone regions are kept", genome)
+        n_called, merged = R.call_peaks(ds, list(lab), kept, params, chrom_sizes, threads, blacklist)
         timings["peaks"] = round(time.monotonic() - t, 1)
         peak_names = merged["Peaks"].to_list()
         log.info("MACS3: %s peaks; merged set %d peaks (%.1fs)", ", ".join(f"{k} {v}" for k, v in n_called.items()),
@@ -248,7 +257,7 @@ def main() -> int:
                  ", ".join(f"{k} {int((markers['label'] == k).sum())}" for k in kept), timings["markers"])
 
         t = time.monotonic()
-        mot = R.motifs(markers, motif_file, gdir, work)
+        mot, motif_info = R.motifs(markers, peak_names, motif_file, gdir, work, params["SEED"])
         timings["motifs"] = round(time.monotonic() - t, 1)
 
         t = time.monotonic()
@@ -257,12 +266,9 @@ def main() -> int:
         if found.rna:
             lk, info = R.links(pm, found.rna, network, names, params, params["SEED"])
             link_info.update(info)
-            called = {p: ";".join(t_ for t_ in kept if v) for p, *vals in merged.select(["Peaks"] + kept).iter_rows()
-                      for v in [any(vals)] if False}
             per_peak = merged.select(["Peaks"] + kept).to_pandas().set_index("Peaks")
             lk = pd.concat([lk[["peak"]], R.split_peak(lk["peak"]), lk.drop(columns=["peak"])], axis=1)
             lk["called_in"] = lk["peak"].map(lambda p: ";".join(c for c in kept if per_peak.at[p, c]))
-            del called
             lk.to_csv(out / "links.csv", index=False)
         timings["links"] = round(time.monotonic() - t, 1)
 
@@ -270,9 +276,14 @@ def main() -> int:
         bed = R.split_peak(peak_names).assign(name=peak_names)
         bed.to_csv(out / "peaks.bed", sep="\t", header=False, index=False)
         (out / "peaks").mkdir(exist_ok=True)
-        files = {}
+        files, used = {}, set()
         for k in kept:
-            fn = f"{R.safe_name(k)}.bed"
+            base, i = R.safe_name(k), 1
+            fn = f"{base}.bed"
+            while fn in used:               # two labels with the same file-safe name ("T cell", "T/cell")
+                i += 1
+                fn = f"{base}_{i}.bed"
+            used.add(fn)
             bed[merged[k].to_numpy()].to_csv(out / "peaks" / fn, sep="\t", header=False, index=False)
             files[k] = f"peaks/{fn}"
         markers.to_csv(out / "marker_peaks.csv", index=False)
@@ -294,9 +305,10 @@ def main() -> int:
             "genome": genome, "n_cells": int(len(cells)), "n_cells_labelled": int((lab != "").sum()),
             "n_cells_used": int(len(sel)), "labels_left_out": small, "n_peaks": len(peak_names),
             "labels": [{**r, "peaks_bed": files[r["label"]], "top_motifs": top_motifs.get(r["label"], []),
-                        "n_links": int(lk["called_in"].str.contains(re.escape(r["label"])).sum()) if len(lk) else 0}
+                        "n_links": int(sum(r["label"] in c.split(";") for c in lk["called_in"])) if len(lk) else 0}
                        for r in stats.to_dict("records")],
-            "n_marker_peaks": len(markers), "n_motif_tests": len(mot),
+            "n_marker_peaks": len(markers), "n_motif_tests": len(mot), "motif_background": motif_info,
+            "blacklist": blacklist.name if blacklist else None,
             "n_enriched_motifs": int(((mot["adjusted_p_value"] < R.MOTIF_FDR) & (mot["log2_fold_change"] > 0)).sum()) if len(mot) else 0,
             "links": {**link_info, "n_links": len(lk)}, "figures": [f.name for f in figs if f is not None],
         }
@@ -318,7 +330,7 @@ def main() -> int:
         "started": started.isoformat(timespec="seconds"), "finished": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "seconds": round(time.monotonic() - t0, 1), "timings": timings, "threads": threads, "genome": genome,
         "motifs": motif_file.name, "samples": [{"sample_id": f.stem, "input": rel(f), "status": "ok"} for f in found.atac],
-        "peak_rss_mb": peak_rss_mb(), "cgroup_peak_mb": cgroup_peak_mb(), "citations": CITATIONS,
+        "peak_rss_mb": peak_rss_mb(), "cgroup_peak_mb": cgroup_peak_mb(), "citations": CITATIONS + ([BLACKLIST_CITATION] if blacklist else []),
     })
     log.info("%s: %d peaks, %d marker peaks, %d motif tests, %d links; peak RSS %s MB, %.1fs", out.name, summary["n_peaks"],
              summary["n_marker_peaks"], summary["n_motif_tests"], summary["links"]["n_links"], peak_rss_mb(),

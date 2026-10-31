@@ -21,12 +21,13 @@ or any labels), and for every cell type:
    with a nearby gene's expression across groups of similar nuclei is a candidate regulator of it.
 
 For the computational analyst: SnapATAC2 end to end. A backed `AnnDataSet` over the samples (no
-copy); `tl.macs3` per label (pseudobulk of the label's Tn5 insertions, q < 0.05; chrM peaks dropped);
+copy); `tl.macs3` per label (pseudobulk of the label's Tn5 insertions, q < 0.05; ENCODE exclusion
+list v2 regions removed for GRCh38; chrM peaks dropped);
 `tl.merge_peaks` (summit ± 250 bp, overlaps resolved by significance); `pp.make_peak_matrix`;
 `tl.diff_test` (logistic-regression likelihood-ratio test, one label against an equal-share
 background of the others, over the peaks called in the label, BH FDR < 0.01) as in SnapATAC2's
-differential-accessibility tutorial; `tl.motif_enrichment` (hypergeometric, marker peaks of one
-label against the union of all labels' marker peaks) with the JASPAR 2026 CORE vertebrates
+differential-accessibility tutorial; `tl.motif_enrichment` (binomial, each label's marker peaks
+against its own GC-matched background drawn from the merged peak set) with the JASPAR 2026 CORE vertebrates
 non-redundant PFMs and sequences from the GENCODE genome built into the image;
 `tl.init_network_from_annotation` (peaks within 250 kb of protein-coding TSSs) and Spearman
 correlation across `tl.aggregate_cells` pseudo-cells of RPM accessibility and CPM expression.
@@ -47,18 +48,26 @@ correlation across `tl.aggregate_cells` pseudo-cells of RPM accessibility and CP
   detected in ≥ 5 % of either group, log2 fold change ≥ 0.25 (SnapATAC2's pre-filter), not open in
   every tested nucleus. `nearest_gene` / `distance_to_tss`: the closest protein-coding gene within
   `LINK_WINDOW_KB` (empty when none).
-- **Motifs** need ≥ 2 labels with ≥ 10 marker peaks (the background is the union of all labels'
-  marker peaks, so a motif enriched in every cell type, e.g. CTCF, does not stand out).
+- **Motifs.** Labels with ≥ 10 marker peaks are tested, each against its own background drawn from
+  the merged peaks that are no label's marker peak, matched to that label's marker GC content
+  (20 bins, three times as many per bin as the markers have): marker peaks of some cell types are GC-rich
+  promoters and CpG islands more often than average, and a GC-blind background would make every
+  GC-rich motif (SP/KLF, E2F, ZNF) look enriched. `summary.json → motif_background` gives, per
+  label, the background size and the mean GC of the markers and of the background. A motif open in every cell type (e.g. CTCF) shows as
+  enriched in all labels against this background.
   `motifs.csv` has every motif × label; the summary and figure count `adjusted_p_value < 0.05`
   with positive log2 fold change.
 - **Links** (RNA linked): nuclei present in both modalities; pseudo-cells from
   `snap.tl.aggregate_cells` (iterative Leiden, ≥ `PSEUDOCELL_SIZE` nuclei each) on the RNA
-  embedding (`obsm["X_integrated"]` from sc-integrate, else `X_pca`, else a 30-component truncated
-  SVD of log CPM); per pseudo-cell, peak RPM and gene CPM (from `layers["counts"]`, else `X`);
+  embedding (`obsm["X_integrated"]` from sc-integrate when every RNA file has it; else a
+  30-component truncated SVD of log CPM over all matched nuclei, because per-sample `X_pca` from
+  sc-qc are separate spaces); per pseudo-cell, peak RPM and gene CPM (from `layers["counts"]`, else `X`);
   Spearman ρ for every peak–gene pair of the network whose peak and gene are both detected in
   ≥ 20 % (and ≥ 5) of the pseudo-cells (ties otherwise make ρ meaningless); p from the t approximation with n − 2
   degrees of freedom, BH-adjusted over all pairs. Kept: ρ ≥ `LINK_MIN_COR` and FDR < 0.05
-  (positive links only, as ArchR's peak-to-gene links). SnapATAC2 2.10.0's `add_cor_scores`
+  (positive links only, as ArchR's peak-to-gene links). These defaults are looser than ArchR's
+  (ρ > 0.45, FDR < 1e-4, over ~500 metacells of 100 nuclei): with tens of pseudo-cells, ArchR's cut
+  keeps almost nothing; raise `LINK_MIN_COR` on large datasets. SnapATAC2 2.10.0's `add_cor_scores`
   misaligns columns when every peak of the matrix is in the network (it then takes the matrix in
   storage order but pairs it with the network's node order), so the same correlation is computed
   here directly.
@@ -131,20 +140,22 @@ myelinating Schwann cells (MPZ, PRX), C06 T cells (PTPRC, CD3E).
 chromosomes fall below 1,000 for some), the RNA side linked. Outputs in
 `workflow-single-cell/data/work/sympathetic/atac-regulome/regulome/cluster/`.
 
-| Label | Nuclei | MACS3 peaks | Marker peaks (FDR < 0.01) | Top JASPAR motifs in marker peaks |
+| Label | Nuclei | MACS3 peaks | Marker peaks (FDR < 0.01) | Top JASPAR motifs in marker peaks (GC-matched background) |
 |---|---|---|---|---|
-| C01 glia | 1,016 | 24,601 | 880 | SOX10, NFIA, NFIX, ZNF281, SOX8 |
-| C02 glia | 905 | 32,178 | 1,001 | SP1, SP4, PATZ1, ZNF148, ZNF281 |
-| C03 macrophages | 400 | 28,380 | 2,117 | Spi1 (PU.1), SPIB, SPIC, IKZF2, EHF |
-| C04 fibroblast / vascular | 331 | 32,326 | 1,772 | HAND2, TEAD2, NFATC1, NFATC3, TWIST1 |
-| C05 myelinating Schwann | 276 | 19,274 | 107 | KLF1, KLF15, KLF7, KLF10, ZBTB41 |
-| C06 T cells | 55 | 5,953 | 792 | FIGLA, ZEB1, ZEB2, TCF3, SNAI1 |
+| C01 glia | 1,016 | 24,578 | 879 | SOX10, NFIA, NFIX, NR3C2, ZNF281 |
+| C02 glia | 905 | 32,152 | 995 | SOX10, ZNF281, PGR, ZNF148, NFIA |
+| C03 macrophages | 400 | 28,344 | 2,117 | SPIB, Spi1 (PU.1), IKZF2, EHF, ELF3 |
+| C04 fibroblast / vascular | 331 | 32,272 | 1,770 | BHLHE22, NEUROD2, OLIG2, TCF12, TWIST2 (E-box bHLH) |
+| C05 myelinating Schwann | 276 | 19,240 | 107 | HNF1B, SRF, E2F7, GMEB2, HES6 |
+| C06 T cells | 55 | 5,948 | 793 | HOXA11, HOXC12, HOXD11, TFCP2, GABPA |
 
-Merged set: 78,989 peaks; 591 motif × label enrichments at FDR < 0.05. The motifs are the
-expected lineage factors (SOX10 in glia, PU.1/SPI family in macrophages, HAND2/TWIST1/TEAD in
-mesenchymal cells, E-box ZEB/TCF factors in lymphocytes). C05 has few marker peaks: myelinating
-Schwann cells share most open chromatin with the other glia. Peak-to-gene links: 26 pseudo-cells
-from 2,983 matched nuclei, 150,036 peak–gene pairs tested (both detected in ≥ 20 % of
+Merged set (ENCODE exclusion list removed): 78,877 peaks; 863 motif × label enrichments at
+FDR < 0.05. The well-populated labels get the expected lineage factors (SOX10 and NFI in glia,
+PU.1/SPI and ETS in macrophages, E-box bHLH incl. TWIST2 in mesenchymal cells); the two small ones
+are noisy (C05 has only 107 marker peaks, C06 only 55 nuclei), which is what to expect from labels
+that small. The backgrounds match each label's GC content (e.g. C05 markers 0.597, background
+0.594). Peak-to-gene links: 26 pseudo-cells
+from 2,983 matched nuclei, 150,030 peak–gene pairs tested (both detected in ≥ 20 % of
 pseudo-cells), 28 kept (ρ ≥ 0.3, FDR < 0.05) — few, as expected with 26 pseudo-cells; a full
 dataset (tens of thousands of nuclei, hundreds of pseudo-cells) has far more power. Before the
 detection filter, genes seen in a single pseudo-cell gave spurious ρ ≈ 1 links; the filter removed
@@ -156,13 +167,15 @@ C04 5,700, C05 830, C06 2,716.
 
 ## Runtime
 
-`computeTypes: [standard]`, 4 vCPU / 30 GiB, 12 h timeout. Measured in the linux/amd64 image under
+`computeTypes: [standard]`, 4 vCPU / 30 GiB, 12 h timeout. **The 30 GiB and 12 h are estimates**,
+extrapolated from the chr1–3 cut below to a 40,000-nucleus dataset; a platform run on full data will
+measure them (a whole-genome run cannot finish under emulation in the 8 GB of Docker here). Measured in the linux/amd64 image under
 emulation on an M-series Mac (Docker `--user 1000`, `--memory 6g --cpus 4`, `THREADS=2`, `/tmp`
 on the container's disk):
 
 | Input | Wall time | Steps | Peak RSS | cgroup peak |
 |---|---|---|---|---|
-| chr1–3 cut: 2,987 nuclei, 79 k peaks, RNA linked | 451 s | peaks 46 s, markers 127 s, motifs 114 s (6,114 sequences × 1,019 motifs, incl. decompressing GRCh38), links 159 s | 1.46 GB | 3.21 GB (incl. page cache of the 3.1 GB decompressed genome) |
+| chr1–3 cut: 2,987 nuclei, 79 k peaks, RNA linked | 669 s | peaks 48 s, markers 120 s, motifs 494 s (decompressing GRCh38, GC of all peaks, 6 labels × markers + 3× GC-matched background × 1,019 motifs), links 3 s | 1.45 GB | 3.44 GB (incl. page cache of the 3.1 GB decompressed genome) |
 | whole-genome cut: 4,001 nuclei, 157 k peaks | peaks 226 s; marker tests ≈ 55 min (container clock) | — | — | killed at 6 GB with `THREADS=4` during MACS3 |
 
 What drives memory and time on full data (estimates, extrapolated from these runs):
@@ -172,21 +185,24 @@ What drives memory and time on full data (estimates, extrapolated from these run
   fragments each is ~20× this cut's largest label: several GB per worker. `THREADS` caps how many
   run at once.
 - **Peak matrix**: in memory, ~12 bytes per non-zero (CSR); 40,000 nuclei × ~5,000 open peaks each
-  ≈ 2.4 GB.
+  ≈ 2.4 GB. It is counted for every nucleus of the samples and then subset to the labelled ones
+  (counting only those would need a copy of the fragments).
 - **Marker tests** (`snap.tl.diff_test`) fit two logistic regressions per tested peak in Python:
   ~25 ms per peak for ~800 nuclei under emulation (measured: 6,346 peaks in ~3 min), linear in
   `MAX_CELLS_PER_TEST`. Tens of labels on full
   data: one to a few hours natively.
 - **Motifs**: the genome is decompressed to `/tmp` (3.1 GB GRCh38, 2.7 GB GRCm39); scanning is
-  ~14 µs per sequence × motif natively (measured: 1.4 s for 100 motifs × 1,000 sequences), so ~5 min for
-  20,000 marker peaks × 1,019 motifs.
+  ~14 µs per sequence × motif natively (measured: 1.4 s for 100 motifs × 1,000 sequences); each
+  label's markers are scanned with three times as many background peaks, so ~20 min natively for
+  20,000 marker peaks in all.
 - **Disk** in `/tmp`: the decompressed genome plus MACS3's exported insertions of the labelled nuclei.
 
 30 GiB and 4 vCPU leave room for ~10 labels of a 40,000-nucleus multiome dataset at `THREADS=4`;
 lower `THREADS` before raising memory if MACS3 runs out.
 
-Image: 2.04 GB (SnapATAC2, MACS3, igraph, the GRCh38 and GRCm39 genomes gzip-compressed with
-their indexes, GENCODE annotations, JASPAR 2026).
+Image: about 2.8 GB of uncompressed layers (`docker history`: genomes 1.74 GB, Python packages
+861 MB, base ~150 MB); Docker Desktop's `docker images` shows 4.79 GB because its containerd store
+counts the compressed and the unpacked content together.
 
 ## Running it locally
 
@@ -238,8 +254,9 @@ The per-label BED files are the input such an analysis needs; nothing else has t
   for a first look.
 - **Pooled samples.** Peaks and markers pool all samples of a label; sample or donor effects are
   not modelled, and conditions are not compared (that is st-compare's job for RNA).
-- **No blacklist.** ENCODE blacklist regions (artefact-prone repeats) are not removed; chrM peaks
-  are. For GWAS overlap, filter peaks against the ENCODE blacklist first.
+- **Blacklist for human only.** Peaks in the ENCODE exclusion list v2 (Amemiya et al. 2019) are
+  removed for GRCh38; no such list exists for GRCm39, so mouse peaks in artefact-prone regions
+  (satellite repeats, rDNA) are kept (logged as a warning). chrM peaks are dropped for both.
 - **Genomes.** GRCh38 and GRCm39 only (as atac-prep).
 
 ## Security
@@ -263,6 +280,8 @@ component and data file (JASPAR 2026: CC BY 4.0; MACS3: BSD-3-Clause; SnapATAC2:
 - **MACS / MACS3** (Yong Zhang, Tao Liu, X. Shirley Liu and colleagues; the MACS3 project): peak
   calling on each label's pseudobulk.
 - **JASPAR** (the JASPAR consortium; 2026 release): the transcription-factor motifs.
+- **ENCODE Blacklist** (Haley Amemiya, Anshul Kundaje, Alan Boyle; ENCODE DCC): the GRCh38
+  exclusion list removed from the peaks.
 - **GENCODE** (the GENCODE consortium): genome sequence and gene annotation for TSSs and links.
 - **anndata** (scverse): reading the RNA side.
 - **Single-cell best practices** (Heumos et al.): the reference for the analysis choices above.
@@ -283,6 +302,9 @@ component and data file (JASPAR 2026: CC BY 4.0; MACS3: BSD-3-Clause; SnapATAC2:
 > Ovek Baydar D, Rauluseviciute I, Aronsen DR, Blanc-Mathieu R, et al. (34 authors). **JASPAR 2026:
 > expansion of transcription factor binding profiles and integration of deep learning models.**
 > Nucleic Acids Res 54(D1):D184-D193 (2026). https://doi.org/10.1093/nar/gkaf1209, PMID 41325984.
+
+> Amemiya HM, Kundaje A, Boyle AP. **The ENCODE Blacklist: Identification of Problematic Regions of
+> the Genome.** Sci Rep 9(1):9354 (2019). https://doi.org/10.1038/s41598-019-45839-z, PMID 31249361.
 
 > Frankish A, Carbonell-Sala S, Diekhans M, et al. (62 authors). **GENCODE: reference annotation for
 > the human and mouse genomes in 2023.** Nucleic Acids Res 51(D1):D942-D949 (2023).
@@ -308,6 +330,10 @@ Demo data:
 > Tao R, et al. (18 authors), Gereau RW. **A multi-omic atlas of human autonomic and sensory ganglia
 > implicates cell types in peripheral neuropathies.** bioRxiv (2025).
 > https://doi.org/10.1101/2025.09.18.677119, PMID 41000833 (the dataset record does not link it).
+
+> Yang L, Meriau P, Cavalli V, Gereau RW. **Nuclear extraction using opti-prep gradient
+> centrifugation for 10X Genomics Multiome Assay v1.** protocols.io (2024).
+> https://doi.org/10.17504/protocols.io.5jyl8q4y8l2w/v1 (the dataset's protocol; checked on Crossref).
 
 JASPAR 2026 is the current release (the 2024 release, doi:10.1093/nar/gkad1059, PMID 37962376, was
 the one first planned). Every DOI was checked on Crossref (DataCite for the

@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from processor import main as app
-from tests.make_fixture import TRUTH, TYPES, make_fixture
+from tests.make_fixture import BLACKLISTED, TRUTH, TYPES, make_fixture
 
 FILES = {"peaks.bed", "marker_peaks.csv", "motifs.csv", "summary.json", "provenance.json", "peaks_per_label.png",
          "marker_peaks_heatmap.png", "motifs_heatmap.png"}
@@ -55,6 +55,9 @@ def test_regulome(fx, tmp_path, monkeypatch, layout):
         sites = TRUTH["sites"][t]
         assert all(any(m["chrom"] == c and int(m["start"]) - 300 <= p <= int(m["end"]) + 300 for c, p in sites)
                    for m in mine)
+    for chrom, centre in TRUTH["sites"]["TypeA"][:BLACKLISTED]:      # blacklisted sites have no peak
+        assert not any(line.split("\t")[0] == chrom and int(line.split("\t")[1]) - 1000 < centre < int(line.split("\t")[2]) + 1000
+                       for line in peaks)
     motifs = rows(d / "motifs.csv")
     top = {t: min((m for m in motifs if m["label"] == t), key=lambda m: float(m["p_value"])) for t in TYPES}
     assert top["TypeA"]["motif_name"] == "FIXA" and float(top["TypeA"]["adjusted_p_value"]) < 1e-6
@@ -114,3 +117,36 @@ def test_platform_link_layout(fx, tmp_path, monkeypatch):
     prov = json.loads((out / "cell-type" / "provenance.json").read_text())
     assert "labels/labels.csv" in prov["inputs"] and len(prov["samples"]) == 2
     assert len(rows(out / "cell-type" / "links.csv")) > 0
+
+
+def test_labels_that_contain_each_other(fx, tmp_path, monkeypatch):
+    """n_links per label counts exact label names, not substrings ("T" in "Fibroblast_2")."""
+    src = tmp_path / "in"
+    shutil.copytree(fx["linked"], src)
+    lab = (src / "labels" / "labels.csv").read_text()
+    for old, new in (("TypeA", "T"), ("TypeB", "Fibroblast"), ("TypeC", "Fibroblast_2")):
+        lab = lab.replace(f",{old},", f",{new},")
+    (src / "labels" / "labels.csv").write_text(lab)
+    out = tmp_path / "out"
+    assert run(src, out, fx, monkeypatch) == 0
+    d = out / "cell-type"
+    links = rows(d / "links.csv")
+    summary = json.loads((d / "summary.json").read_text())
+    for x in summary["labels"]:
+        assert x["n_links"] == sum(x["label"] in lk["called_in"].split(";") for lk in links)
+    assert sorted(p.name for p in (d / "peaks").iterdir()) == sorted(
+        ["T.bed", "Fibroblast.bed", "Fibroblast_2.bed", "RareType.bed"])
+
+
+def test_external_hdf5_link_refused(fx, tmp_path, monkeypatch):
+    import h5py
+
+    src = tmp_path / "in"
+    shutil.copytree(fx["linked"], src)
+    with h5py.File(src / "atac" / "s1.h5ad", "a") as h:
+        h["obsm"]["leak"] = h5py.ExternalLink("/etc/hosts", "/")
+    assert run(src, tmp_path / "out", fx, monkeypatch) == 1
+
+
+def test_missing_label_column_is_a_parameter_error(fx, tmp_path, monkeypatch):
+    assert run(fx["linked"], tmp_path / "out", fx, monkeypatch, LABEL_COLUMN="no_such_column") == 2

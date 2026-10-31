@@ -12,7 +12,7 @@ igraph (its source is at https://github.com/igraph/python-igraph, tag 1.0.0).
 | Component | What | Licence | Source |
 |---|---|---|---|
 | SnapATAC2 2.10.0 | `AnnDataSet`, `tl.macs3`, `tl.merge_peaks`, `pp.make_peak_matrix`, `tl.diff_test`, `tl.motif_enrichment`, `read_motifs`, `tl.init_network_from_annotation`, `tl.aggregate_cells`, `tl.aggregate_X` | MIT | https://github.com/scverse/SnapATAC2 |
-| MACS3 3.0.5 | Peak calling (through SnapATAC2) | BSD-3-Clause | https://github.com/macs3-project/MACS |
+| MACS3 3.0.5 | Peak calling (through SnapATAC2); 3.0.5 is the newest release SnapATAC2 2.10.0 accepts (`macs3>=3.0.3,<3.1`) | BSD-3-Clause | https://github.com/macs3-project/MACS |
 | python-igraph 1.0.0, texttable 1.7.2 | Leiden clustering for pseudo-cells | GPL-2.0-or-later; MIT | https://igraph.org/python |
 | pyfaidx 0.8.2 | Random access to the genome FASTA (decompressed to `/tmp` for the motif step) | BSD-3-Clause | PyPI |
 | hmmlearn 0.3.3 | Dependency of MACS3 | BSD-3-Clause | PyPI |
@@ -34,6 +34,7 @@ Cython 3.3.0 (to build the MACS3 wheel).
 | `/opt/motifs/JASPAR2026_CORE_vertebrates_non-redundant_pfms_meme.txt` | JASPAR 2026 CORE vertebrates, non-redundant, 1,019 PFMs | CC BY 4.0 (stated on jaspar.elixir.no, checked 2026-10-31) | jaspar.elixir.no/download/data/2026/CORE/, sha256 ae4f77a1… |
 | `/opt/genomes/GRCh38/genome.fa.gz` (+ `genome.fa.fai`) | GENCODE GRCh38 primary assembly (release 41), chr1-22, X, Y, M, recompressed | GENCODE / Genome Reference Consortium data, freely available (EMBL-EBI terms of use) | GENCODE release 41 `GRCh38.primary_assembly.genome.fa.gz`, fetched from SnapATAC2's mirror (exampledata.scverse.org/snapatac2/gencode_v41_GRCh38.fa.gz), sha256 4fac949d… (SnapATAC2's pin; the same bytes as ftp.ebi.ac.uk) |
 | `/opt/genomes/GRCm39/genome.fa.gz` (+ `genome.fa.fai`) | GENCODE GRCm39 primary assembly (release M30), chr1-19, X, Y, M | as above | GENCODE release M30 `GRCm39.primary_assembly.genome.fa.gz`, from SnapATAC2's mirror, sha256 3b923c06… |
+| `/opt/genomes/GRCh38/blacklist.bed.gz` | ENCODE exclusion list v2 for GRCh38 (910 regions; Amemiya et al. 2019), passed to MACS3 | ENCODE data use policy: free to download, analyse and publish without restrictions | ENCODE portal ENCFF356LFX (annotation ENCSR636HFF), sha256 a9d086ce… (md5 393688b4… as listed by the portal). Not taken from the Boyle-Lab GitHub repository. No list exists for GRCm39. |
 | `/opt/genomes/*/annotation.gff3.gz` | GENCODE basic annotation (v41 / vM30) | as above | sha256 b82a655b… / 6f433e26… |
 | `/opt/genomes/*/chrom_sizes.tsv` | Primary chromosome lengths | SnapATAC2's tables (MIT) | written at build time |
 

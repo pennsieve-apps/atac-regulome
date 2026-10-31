@@ -32,8 +32,8 @@ Cython 3.3.0 (to build the MACS3 wheel).
 | File | What | Licence / terms | Source, checksum |
 |---|---|---|---|
 | `/opt/motifs/JASPAR2026_CORE_vertebrates_non-redundant_pfms_meme.txt` | JASPAR 2026 CORE vertebrates, non-redundant, 1,019 PFMs | CC BY 4.0 (stated on jaspar.elixir.no, checked 2026-10-31) | jaspar.elixir.no/download/data/2026/CORE/, sha256 ae4f77a1… |
-| `/opt/genomes/GRCh38/genome.fa.gz` (+ `genome.fa.fai`) | GENCODE GRCh38 primary assembly (release 41), chr1-22, X, Y, M, recompressed | GENCODE / Genome Reference Consortium data, freely available (EMBL-EBI terms of use) | …/Gencode_human/release_41/GRCh38.primary_assembly.genome.fa.gz, sha256 4fac949d… (SnapATAC2's pin) |
-| `/opt/genomes/GRCm39/genome.fa.gz` (+ `genome.fa.fai`) | GENCODE GRCm39 primary assembly (release M30), chr1-19, X, Y, M | as above | …/Gencode_mouse/release_M30/GRCm39.primary_assembly.genome.fa.gz, sha256 3b923c06… |
+| `/opt/genomes/GRCh38/genome.fa.gz` (+ `genome.fa.fai`) | GENCODE GRCh38 primary assembly (release 41), chr1-22, X, Y, M, recompressed | GENCODE / Genome Reference Consortium data, freely available (EMBL-EBI terms of use) | GENCODE release 41 `GRCh38.primary_assembly.genome.fa.gz`, fetched from SnapATAC2's mirror (exampledata.scverse.org/snapatac2/gencode_v41_GRCh38.fa.gz), sha256 4fac949d… (SnapATAC2's pin; the same bytes as ftp.ebi.ac.uk) |
+| `/opt/genomes/GRCm39/genome.fa.gz` (+ `genome.fa.fai`) | GENCODE GRCm39 primary assembly (release M30), chr1-19, X, Y, M | as above | GENCODE release M30 `GRCm39.primary_assembly.genome.fa.gz`, from SnapATAC2's mirror, sha256 3b923c06… |
 | `/opt/genomes/*/annotation.gff3.gz` | GENCODE basic annotation (v41 / vM30) | as above | sha256 b82a655b… / 6f433e26… |
 | `/opt/genomes/*/chrom_sizes.tsv` | Primary chromosome lengths | SnapATAC2's tables (MIT) | written at build time |
 

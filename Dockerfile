@@ -9,7 +9,9 @@ RUN pip install --no-cache-dir setuptools==84.2.1 numpy==2.5.4 Cython==3.3.0 \
     && pip wheel --no-cache-dir --no-deps --no-build-isolation -w /wheels /src/macs3-3.0.5.tar.gz
 
 # --- Reference data: GENCODE annotations + genomes (the files SnapATAC2 2.10.0's genome objects
-# download lazily, with the sha256 SnapATAC2 pins for them) and JASPAR 2026 CORE vertebrates -----
+# download lazily, with the sha256 SnapATAC2 pins for them; the genome FASTAs from SnapATAC2's own
+# mirror, byte-identical to GENCODE's primary_assembly files on ftp.ebi.ac.uk, whose server kept
+# cutting these 0.8 GB downloads) and JASPAR 2026 CORE vertebrates -----
 FROM --platform=linux/amd64 python:3.12.16-slim-bookworm@sha256:e697c81897302a4c4333bade000d98038fbb21eb064f8ee1fd42d02ebcd9d337 AS reference
 RUN pip install --no-cache-dir pyfaidx==0.8.2 numpy==2.5.4 snapatac2==2.10.0 --no-deps \
     && pip install --no-cache-dir anndata==0.13.4 pandas==2.3.3 polars==1.44.2 polars-runtime-32==1.44.2 scipy==1.18.1 \
@@ -22,9 +24,9 @@ ADD --checksum=sha256:6f433e2676e26569a678ce78b37e94a64ddd50a09479e433ad6f75e37d
     https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_mouse/release_M30/gencode.vM30.basic.annotation.gff3.gz \
     /opt/genomes/GRCm39/annotation.gff3.gz
 ADD --checksum=sha256:4fac949d7021cbe11117ddab8ec1960004df423d672446cadfbc8cca8007e228 \
-    https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_41/GRCh38.primary_assembly.genome.fa.gz /src/GRCh38.fa.gz
+    https://exampledata.scverse.org/snapatac2/gencode_v41_GRCh38.fa.gz /src/GRCh38.fa.gz
 ADD --checksum=sha256:3b923c06a0d291fe646af6bf7beaed7492bf0f6dd5309d4f5904623cab41b0aa \
-    https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_mouse/release_M30/GRCm39.primary_assembly.genome.fa.gz /src/GRCm39.fa.gz
+    https://exampledata.scverse.org/snapatac2/gencode_vM30_GRCm39.fa.gz /src/GRCm39.fa.gz
 ADD --checksum=sha256:ae4f77a17256c7b8b7b73402810c1ecf4fc411e9ad7832cdc87d586dee9a4a15 \
     https://jaspar.elixir.no/download/data/2026/CORE/JASPAR2026_CORE_vertebrates_non-redundant_pfms_meme.txt /opt/motifs/
 COPY scripts/primary_fasta.py /src/

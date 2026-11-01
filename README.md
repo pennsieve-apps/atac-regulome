@@ -24,10 +24,11 @@ For the computational analyst: SnapATAC2 end to end. A backed `AnnDataSet` over 
 copy); `tl.macs3` per label (pseudobulk of the label's Tn5 insertions, q < 0.05; ENCODE exclusion
 list v2 regions removed for GRCh38; chrM peaks dropped);
 `tl.merge_peaks` (summit ± 250 bp, overlaps resolved by significance); `pp.make_peak_matrix`;
-`tl.diff_test` (logistic-regression likelihood-ratio test, one label against an equal-share
+`tl.diff_test`'s test (logistic-regression likelihood-ratio test, one label against an equal-share
 background of the others, over the peaks called in the label, BH FDR < 0.01) as in SnapATAC2's
-differential-accessibility tutorial; `tl.motif_enrichment` (binomial, each label's marker peaks
-against its own GC-matched background drawn from the merged peak set) with the JASPAR 2026 CORE vertebrates
+differential-accessibility tutorial, fitted for all peaks at once (see Runtime); `tl.motif_enrichment`'s test
+(binomial, each label's marker peaks against its own GC-matched background drawn from the merged peak
+set; every distinct sequence scanned once for all labels) with the JASPAR 2026 CORE vertebrates
 non-redundant PFMs and sequences from the GENCODE genome built into the image;
 `tl.init_network_from_annotation` (peaks within 250 kb of protein-coding TSSs) and Spearman
 correlation across `tl.aggregate_cells` pseudo-cells of RPM accessibility and CPM expression.
@@ -167,7 +168,7 @@ C04 5,700, C05 830, C06 2,716.
 
 ## Runtime
 
-`computeTypes: [standard]`, 4 vCPU / 30 GiB, 12 h timeout. **The 30 GiB and 12 h are estimates**,
+`computeTypes: [standard]`, 8 vCPU / 32 GiB, 12 h timeout. **The 32 GiB and 12 h are estimates**,
 extrapolated from the chr1–3 cut below to a 40,000-nucleus dataset; a platform run on full data will
 measure them (a whole-genome run cannot finish under emulation in the 8 GB of Docker here). Measured in the linux/amd64 image under
 emulation on an M-series Mac (Docker `--user 1000`, `--memory 6g --cpus 4`, `THREADS=2`, `/tmp`
@@ -187,17 +188,24 @@ What drives memory and time on full data (estimates, extrapolated from these run
 - **Peak matrix**: in memory, ~12 bytes per non-zero (CSR); 40,000 nuclei × ~5,000 open peaks each
   ≈ 2.4 GB. It is counted for every nucleus of the samples and then subset to the labelled ones
   (counting only those would need a copy of the fragments).
-- **Marker tests** (`snap.tl.diff_test`) fit two logistic regressions per tested peak in Python:
-  ~25 ms per peak for ~800 nuclei under emulation (measured: 6,346 peaks in ~3 min), linear in
-  `MAX_CELLS_PER_TEST`. Tens of labels on full
-  data: one to a few hours natively.
+- **Marker tests.** SnapATAC2 2.10.0's `tl.diff_test` fits two scikit-learn logistic regressions per
+  peak, one after another: on the platform (v0.1.0, 4 vCPU) 54,000 peaks of 3 labels took 22 min. Since
+  v0.1.1 the same two models (null: intercept + log1p total count; alternative: + group) are fitted by
+  Newton's method for a block of 4,096 peaks at a time with matrix products (`regulome.lrt_pvalues`):
+  11× faster on one core (8,000 peaks: 23.3 s → 2.1 s), more with BLAS threads. They are the exact
+  maximum-likelihood fits; SnapATAC2's L-BFGS fits stop at scikit-learn's default tolerance, so its
+  p-values differ slightly (within 0.1 on the log10 scale; tests/test_equivalence.py checks both).
+  The peak filter (`min_pct` 0.05, `min_log_fc` 0.25, RPM with pseudo-count 1) and BH are SnapATAC2's.
 - **Motifs**: the genome is decompressed to `/tmp` (3.1 GB GRCh38, 2.7 GB GRCm39); scanning is
-  ~14 µs per sequence × motif natively (measured: 1.4 s for 100 motifs × 1,000 sequences); each
-  label's markers are scanned with three times as many background peaks, so ~20 min natively for
-  20,000 marker peaks in all.
+  ~14 µs per sequence × motif natively on one core (measured: 1.4 s for 100 motifs × 1,000 sequences)
+  and SnapATAC2 spreads it over the CPUs. Each label's markers are compared with three times as many
+  GC-matched background peaks; `tl.motif_enrichment` takes one background per call, so v0.1.0 scanned
+  the overlapping backgrounds once per label (on the platform, 3 labels: 114,600 sequences, 29.5 min
+  at 4 vCPU). Since v0.1.1 every distinct sequence is scanned once for all labels
+  (`regulome.motif_enrichment`, the same counts and binomial test, checked against SnapATAC2).
 - **Disk** in `/tmp`: the decompressed genome plus MACS3's exported insertions of the labelled nuclei.
 
-30 GiB and 4 vCPU leave room for ~10 labels of a 40,000-nucleus multiome dataset at `THREADS=4`;
+32 GiB and 8 vCPU leave room for ~10 labels of a 40,000-nucleus multiome dataset at `THREADS=4`;
 lower `THREADS` before raising memory if MACS3 runs out.
 
 Image: about 2.8 GB of uncompressed layers (`docker history`: genomes 1.74 GB, Python packages

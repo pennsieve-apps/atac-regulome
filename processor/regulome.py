@@ -106,36 +106,101 @@ def nearest_genes(network, names: dict[str, str]) -> dict[str, tuple[str, int]]:
     return out
 
 
-def marker_peaks(pm, labels: list[str], merged, params: dict, seed: int) -> pd.DataFrame:
-    import snapatac2 as snap
+def lrt_pvalues(cov: np.ndarray, z: np.ndarray, Y: sp.csc_matrix, chunk: int = 4096, iters: int = 100) -> np.ndarray:
+    """
+    The p-values of snap.tl.diff_test's likelihood-ratio test, for every column of Y at once: per column a
+    logistic regression of the binarised accessibility on [1, cov] (null) and on [1, cov, z] (alternative),
+    unpenalised, chi-square with 1 df on twice the log-likelihood gain. SnapATAC2 2.10.0 fits the two models
+    per peak with scikit-learn, one after another (~40 peaks/s on a Fargate vCPU); here Newton's method runs
+    on a block of columns at a time with matrix products, giving the same maximum-likelihood fits.
+    Columns whose fit does not come out finite are fitted by SnapATAC2's own function.
+    """
+    from scipy.stats import chi2
 
+    n = len(cov)
+    cov = cov - cov.mean()     # centred: the same likelihoods, a better-conditioned Newton step
+    designs = (np.c_[np.ones(n), cov], np.c_[np.ones(n), cov, z])
+    out = np.empty(Y.shape[1])
+    for s in range(0, Y.shape[1], chunk):
+        y = (Y[:, s:s + chunk].toarray() > 0).astype(np.float64)
+        ll = []
+        for D in designs:
+            q = D.shape[1]
+            B = np.zeros((q, y.shape[1]))
+            pairs = [(i, j, D[:, i] * D[:, j]) for i in range(q) for j in range(i, q)]
+            for _ in range(iters):
+                p = 1 / (1 + np.exp(-np.clip(D @ B, -30, 30)))
+                w = p * (1 - p)
+                H = np.empty((y.shape[1], q, q))
+                for i, j, dd in pairs:
+                    H[:, i, j] = H[:, j, i] = dd @ w
+                step = np.linalg.solve(H + 1e-9 * np.eye(q), (D.T @ (y - p)).T[..., None])[..., 0].T
+                # damped along the Newton direction: a separable column walks off instead of jumping
+                B += step * np.minimum(1, 5 / np.maximum(np.abs(step).max(axis=0), 1e-300))
+                if np.abs(step).max() < 1e-8:
+                    break
+            p = np.clip(1 / (1 + np.exp(-np.clip(D @ B, -30, 30))), 1e-15, 1 - 1e-15)
+            ll.append((y * np.log(p) + (1 - y) * np.log1p(-p)).sum(axis=0))
+        out[s:s + chunk] = chi2.sf(np.maximum(2 * (ll[1] - ll[0]), 0), 1)
+    bad = np.flatnonzero(~np.isfinite(out))
+    if len(bad):
+        from snapatac2.tools._diff import _likelihood_ratio_test_many
+
+        log.warning("%d column(s) refitted one by one", len(bad))
+        out[bad] = _likelihood_ratio_test_many(cov[:, None], z[:, None], Y[:, bad].copy())
+    return out
+
+
+def diff_test(X: sp.spmatrix, var_names, fg_rows: np.ndarray, bg_rows: np.ndarray, features: np.ndarray,
+              min_pct: float = 0.05, min_log_fc: float = 0.25) -> pd.DataFrame:
+    """
+    snap.tl.diff_test(direction="positive") with its defaults, over the rows fg_rows (group 1) and bg_rows
+    (group 2) of the cell-by-peak matrix X: a peak is tested when it is open in >= min_pct of either group
+    and log2 of its RPM (count + 1, over all peaks) in group 1 over group 2 is >= min_log_fc; the covariate is
+    log1p of each cell's total count; BH-adjusted. Returns peak, log2_fold_change, p_value, adjusted_p_value.
+    """
+    M = sp.csc_matrix(X[np.r_[fg_rows, bg_rows]])
+    n1 = len(fg_rows)
+    rpm = lambda m: (lambda x: x / (x.sum() / 1e6))(np.ravel(m.sum(axis=0)) + 1)  # noqa: E731
+    log_fc = np.log2(rpm(M[:n1]) / rpm(M[n1:]))
+    open1 = np.ravel((M[:n1] != 0).sum(axis=0))
+    open2 = np.ravel((M[n1:] != 0).sum(axis=0))
+    keep = ((open1 / n1 >= min_pct) | (open2 / (M.shape[0] - n1) >= min_pct)) & (log_fc >= min_log_fc)
+    features = np.asarray(features)[keep[features]]
+    cols = ["peak", "log2_fold_change", "p_value", "adjusted_p_value"]
+    log.info("%d of the peaks pass min_pct %g / min_log_fc %g; testing them", len(features), min_pct, min_log_fc)
+    if not len(features):
+        return pd.DataFrame(columns=cols)
+    cov = np.log1p(np.ravel(M.sum(axis=1)))
+    z = np.r_[np.zeros(n1), np.ones(M.shape[0] - n1)]
+    p = lrt_pvalues(cov, z, M[:, features])
+    df = pd.DataFrame({"peak": np.asarray(var_names)[features], "log2_fold_change": log_fc[features], "p_value": p,
+                       "adjusted_p_value": bh(p)})
+    return df.sort_values("adjusted_p_value", kind="stable").reset_index(drop=True)
+
+
+def marker_peaks(pm, labels: list[str], merged, params: dict, seed: int) -> pd.DataFrame:
     rng = np.random.default_rng(seed)
     lab = np.asarray(pm.obs["label"].astype(str))
-    names = np.asarray(pm.obs_names)
+    X = sp.csr_matrix(pm.X)
     cap = params["MAX_CELLS_PER_TEST"]
     out = []
     for t in labels:
         others = [o for o in labels if o != t]
         if not others:
             break
-        fg = names[lab == t]
+        fg = np.flatnonzero(lab == t)
         fg = rng.choice(fg, size=min(cap, len(fg)), replace=False)
         share = max(1, -(-cap // len(others)))
-        bg = np.concatenate([rng.choice(names[lab == o], size=min(share, int((lab == o).sum())), replace=False)
+        bg = np.concatenate([rng.choice(np.flatnonzero(lab == o), size=min(share, int((lab == o).sum())), replace=False)
                              for o in others])
         feats = np.flatnonzero(merged[t].to_numpy())
         # a peak open in every tested cell cannot be tested (the logistic fit needs both outcomes)
-        rows = np.flatnonzero(np.isin(names, np.concatenate([fg, bg])))
-        sub = sp.csc_matrix(pm.X[rows][:, feats])
-        feats = feats[np.diff(sub.indptr) < len(rows)]
+        sub = sp.csc_matrix(X[np.r_[fg, bg]][:, feats])
+        feats = feats[np.diff(sub.indptr) < len(fg) + len(bg)]
         if not len(feats):
             continue
-        res = snap.tl.diff_test(pm, cell_group1=list(fg), cell_group2=list(bg), features=list(feats),
-                                direction="positive")
-        if res.height == 0:
-            continue
-        df = res.to_pandas().rename(columns={"feature name": "peak", "log2(fold_change)": "log2_fold_change",
-                                             "p-value": "p_value", "adjusted p-value": "adjusted_p_value"})
+        df = diff_test(X, pm.var_names, fg, bg, feats)
         df = df[df["adjusted_p_value"] < params["MARKER_FDR"]]
         df.insert(0, "label", t)
         df["n_cells"], df["n_background"] = len(fg), len(bg)
@@ -203,18 +268,55 @@ def motifs(markers: pd.DataFrame, peaks: list[str], motif_file: Path, genome_dir
     for m in pfms:                       # MEME "MOTIF MA0004.1 Arnt": SnapATAC2 keeps both words in id
         m.id, _, name = m.id.partition(" ")
         m.name = name or m.id
-    info, out = {}, []
-    for t, fg in regions.items():
-        # each label against its own GC-matched draw from the peaks that are no label's marker
-        background = gc_matched_background(peaks, gc, union, fg, seed)
-        info[t] = {"marker_gc": round(float(np.mean([gc_of[p] for p in fg])), 3), "background_peaks": len(background),
-                   "background_gc": round(float(np.mean([gc_of[p] for p in background])), 3) if background else None}
-        df = snap.tl.motif_enrichment(pfms, {t: fg}, fasta, background=background, method="binomial")[t]
-        d = df.to_pandas().rename(columns={"id": "motif_id", "name": "motif_name", "log2(fold change)": "log2_fold_change",
-                                           "p-value": "p_value", "adjusted p-value": "adjusted_p_value"})
-        d.insert(0, "label", t)
-        out.append(d[cols])
+    # each label against its own GC-matched draw from the peaks that are no label's marker
+    backgrounds = {t: gc_matched_background(peaks, gc, union, fg, seed) for t, fg in regions.items()}
+    info = {t: {"marker_gc": round(float(np.mean([gc_of[p] for p in fg])), 3), "background_peaks": len(backgrounds[t]),
+                "background_gc": round(float(np.mean([gc_of[p] for p in backgrounds[t]])), 3) if backgrounds[t] else None}
+            for t, fg in regions.items()}
+    out = [pd.DataFrame({"label": t, **d})[cols]
+           for t, d in motif_enrichment(pfms, regions, backgrounds, fasta).items()]
     return pd.concat(out, ignore_index=True).sort_values(["label", "p_value"], kind="stable"), info
+
+
+def motif_enrichment(pfms, regions: dict[str, list[str]], backgrounds: dict[str, list[str]], fasta: Path) -> dict[str, dict]:
+    """
+    snap.tl.motif_enrichment(method="binomial") of each label's regions against that label's own background,
+    with every distinct sequence scanned once: SnapATAC2 2.10.0 takes one background per call, so a call per
+    label scanned the overlapping backgrounds again for each label. Per motif and label, the same counts,
+    fold change and binomial p-value as SnapATAC2, BH-adjusted per label.
+    """
+    from pyfaidx import Fasta
+    from scipy.stats import binom
+    from snapatac2._utils import fetch_seq
+    from snapatac2.tools._diff import _p_adjust_bh
+
+    every = list(dict.fromkeys(p for t in regions for p in (*regions[t], *backgrounds[t])))
+    index = {p: i for i, p in enumerate(every)}
+    log.info("scanning %d motifs over %d distinct sequences (%d label + background sequences in all)", len(pfms),
+             len(every), sum(len(regions[t]) + len(backgrounds[t]) for t in regions))
+    genome = Fasta(str(fasta), one_based_attributes=False)
+    sequences = [fetch_seq(genome, p) for p in every]
+    fg_idx = {t: np.array([index[p] for p in regions[t]]) for t in regions}
+    bg_idx = {t: np.array([index[p] for p in backgrounds[t]], dtype=int) for t in regions}
+    counts = {t: ([], []) for t in regions}
+    for m in pfms:
+        bound = np.asarray(m.with_nucl_prob().exists(sequences), dtype=bool)
+        for t in regions:
+            counts[t][0].append(int(bound[fg_idx[t]].sum()))
+            counts[t][1].append(int(bound[bg_idx[t]].sum()))
+    out = {}
+    for t in regions:
+        n_fg, n_bg = np.array(counts[t][0]), np.array(counts[t][1])
+        N_fg, N_bg = len(regions[t]), len(backgrounds[t])
+        with np.errstate(divide="ignore", invalid="ignore"):
+            fc = np.where(n_fg == 0, np.where(n_bg == 0, 0.0, -np.inf),
+                          np.where(n_bg > 0, np.log2((n_fg / N_fg) / (n_bg / max(N_bg, 1))), np.inf))
+            rate = n_bg / N_bg if N_bg else np.full(len(n_bg), np.nan)
+            pval = np.where(fc >= 0, binom.sf(n_fg - 1, N_fg, rate), binom.cdf(n_fg, N_fg, rate))
+        pval = np.clip(pval, 1e-300, 1)
+        out[t] = {"motif_id": [m.id for m in pfms], "motif_name": [m.name for m in pfms], "log2_fold_change": fc,
+                  "p_value": pval, "adjusted_p_value": _p_adjust_bh(list(pval))}
+    return out
 
 
 def rna_matrix(rna_files: list[Path], cells: list[str]) -> tuple[list[str], sp.csr_matrix, np.ndarray, list[str]]:

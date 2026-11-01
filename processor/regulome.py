@@ -370,7 +370,10 @@ def links(pm, rna_files: list[Path], network, names: dict[str, str], params: dic
     matched, X, emb, genes = rna_matrix(rna_files, list(pm.obs_names))
     info = {"n_matched_cells": len(matched)}
     if len(matched) < 2 * params["PSEUDOCELL_SIZE"]:
-        log.warning("peak-to-gene links skipped: %d cells matched between ATAC and RNA", len(matched))
+        info["skipped"] = (f"only {len(matched)} nuclei are in both the ATAC and the RNA data; links need at least "
+                           f"{2 * params['PSEUDOCELL_SIZE']} (twice PSEUDOCELL_SIZE). Check that the RNA cells are the same "
+                           "nuclei, with the same barcodes and sample ids")
+        log.warning("peak-to-gene links skipped: %s", info["skipped"])
         return pd.DataFrame(columns=cols), info
     pseudo = np.asarray(snap.tl.aggregate_cells(np.ascontiguousarray(emb, dtype=np.float64), inplace=False,
                                                 min_cluster_size=params["PSEUDOCELL_SIZE"], random_state=seed), dtype=str)
@@ -379,7 +382,10 @@ def links(pm, rna_files: list[Path], network, names: dict[str, str], params: dic
     n = len(groups)
     info.update(n_pseudocells=n, n_genes_rna=len(genes))
     if n < 5:
-        log.warning("peak-to-gene links skipped: %d pseudo-cells (need >= 5)", n)
+        info["skipped"] = (f"the {len(matched):,} nuclei in both the ATAC and the RNA data formed {n} pseudo-cells of at least "
+                           f"{params['PSEUDOCELL_SIZE']} nuclei; links need at least 5. More nuclei, or a smaller "
+                           "PSEUDOCELL_SIZE, gives more pseudo-cells")
+        log.warning("peak-to-gene links skipped: %s", info["skipped"])
         return pd.DataFrame(columns=cols), info
     gidx = {g: i for i, g in enumerate(groups)}
     G = sp.csr_matrix((np.ones(ok.sum()), ([gidx[p] for p in pseudo[ok]], np.flatnonzero(ok))), shape=(n, len(matched)))

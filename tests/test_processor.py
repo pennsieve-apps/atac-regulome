@@ -69,6 +69,7 @@ def test_regulome(fx, tmp_path, monkeypatch, layout):
         assert len(set(genes) & set(TRUTH["linked"][t])) >= 6      # of the 8 planted
     summary = json.loads((d / "summary.json").read_text())
     assert summary["n_cells_used"] == 620 and summary["links"]["n_links"] == len(links)
+    assert summary["notes"] == [] and "skipped" not in summary["links"]
     assert next(x for x in summary["labels"] if x["label"] == "TypeA")["top_motifs"][0] == "FIXA"
     prov = json.loads((d / "provenance.json").read_text())
     assert {"app", "version", "tools", "parameters", "inputs", "started", "finished", "samples", "peak_rss_mb",
@@ -86,6 +87,16 @@ def test_without_rna_and_min_cells(fx, tmp_path, monkeypatch):
     assert not (d / "links.csv").exists()
     summary = json.loads((d / "summary.json").read_text())
     assert summary["labels_left_out"] == {"RareType": 20} and summary["links"]["rna_linked"] is False
+
+
+def test_links_skipped_says_why(fx, tmp_path, monkeypatch):
+    """Too few pseudo-cells: no links, and summary.json says why (sc-report prints the notes)."""
+    out = tmp_path / "out"
+    assert run(fx["linked"], out, fx, monkeypatch, PSEUDOCELL_SIZE=200) == 0
+    summary = json.loads((out / "cell-type" / "summary.json").read_text())
+    assert summary["links"]["n_links"] == 0 and summary["links"]["n_pseudocells"] < 5
+    assert summary["notes"] == [f"Peak-to-gene links were not computed: {summary['links']['skipped']}."]
+    assert "PSEUDOCELL_SIZE" in summary["notes"][0]
 
 
 def test_labels_not_matching(fx, tmp_path, monkeypatch):

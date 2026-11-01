@@ -311,6 +311,7 @@ def main() -> int:
             "blacklist": blacklist.name if blacklist else None,
             "n_enriched_motifs": int(((mot["adjusted_p_value"] < R.MOTIF_FDR) & (mot["log2_fold_change"] > 0)).sum()) if len(mot) else 0,
             "links": {**link_info, "n_links": len(lk)}, "figures": [f.name for f in figs if f is not None],
+            "notes": [f"Peak-to-gene links were not computed: {link_info['skipped']}."] if "skipped" in link_info else [],
         }
         write_json(out / "summary.json", summary)
     except Exception as exc:  # noqa: BLE001

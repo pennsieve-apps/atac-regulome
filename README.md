@@ -105,7 +105,7 @@ table per cell type is what the report shows), and builds links on SnapATAC2's p
 | `marker_peaks_heatmap.png` | z-scored pseudobulk accessibility of each label's top 20 marker peaks across labels. |
 | `motifs_heatmap.png` | −log10 adjusted p of each label's top 5 enriched motifs across labels. |
 | `links.png` | Kept links: correlation against distance to TSS. |
-| `summary.json` | Cells used and left out, peaks, per label: cells, peaks, marker peaks, top motifs, links, BED file; link statistics. |
+| `summary.json` | Cells used and left out, peaks, per label: cells, peaks, marker peaks, top motifs, links, BED file; link statistics; `notes` (e.g. why links were not computed), which sc-report prints. |
 | `provenance.json` | Version, tools, parameters, inputs, timings, peak memory, citations. |
 
 ## Parameters

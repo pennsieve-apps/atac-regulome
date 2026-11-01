@@ -7,6 +7,11 @@ abstract: Gene regulation per cell type from single-nucleus ATAC (multiome). Pse
   peaks and, with the RNA side, peak-to-gene links from correlation across pseudo-cells.
 authors:
 - name: Pennsieve (University of Pennsylvania)
+contact:
+- given-names: Joost
+  family-names: Wagenaar
+  orcid: https://orcid.org/0009-0004-5925-5451
+  affiliation: University of Pennsylvania
 repository-code: https://github.com/pennsieve-apps/atac-regulome
 license: Apache-2.0
 version: 0.1.0

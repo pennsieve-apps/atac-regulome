@@ -107,6 +107,8 @@ inputs:
     description: atac-prep's <sample_id>.h5ad files (SnapATAC2 AnnData with fragments; uns["pennsieve"]["genome"]).
     placement: subfolder
     required: true
+    mediaTypes:
+      - "application/x-hdf5; profile=anndata"
     formats:
       - format_3590
   - name: labels
@@ -124,6 +126,8 @@ inputs:
       obsm X_integrated / X_pca when present.
     placement: subfolder
     required: false
+    mediaTypes:
+      - "application/x-hdf5; profile=anndata"
     formats:
       - format_3590
 outputs:

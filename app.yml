@@ -18,9 +18,6 @@ application:
     - genomics
     - gene-regulation
     - transcriptomics
-    - neuroscience
-    - pain
-    - musculoskeletal
 runtime:
   # 8 vCPU: motif scanning and the batched marker tests use every CPU (README "Runtime"). Memory is an
   # estimate, extrapolated from the chr1-3 demo cut (1.5 GB RSS, 3.2 GB cgroup peak for 2,987 nuclei) to a
